@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from libs.core.config import get_float, get_int
 from libs.core.contracts import DatasetRecord, EvalResult, JudgeResult
 
-# Minimum lengths to consider content meaningful
-MIN_RESPONSE_LEN = 5
-MIN_MESSAGE_CONTENT_LEN = 2
+MIN_RESPONSE_LEN = get_int("min_response_len")
+MIN_MESSAGE_CONTENT_LEN = get_int("min_message_content_len")
+SHORT_RESPONSE_PENALTY = get_float("short_response_penalty")
+NO_USER_MESSAGE_PENALTY = get_float("no_user_message_penalty")
+ERROR_MARKER_PENALTY = get_float("error_marker_penalty")
+GOLDEN_MISMATCH_PENALTY = get_float("golden_mismatch_penalty")
+JUDGE_BLEND_WEIGHT = get_float("judge_blend_weight")
+ACCEPT_THRESHOLD = get_float("accept_threshold")
+REVIEW_THRESHOLD = get_float("review_threshold")
 
-# Substrings that indicate error-tainted content
 ERROR_MARKERS = ["[error]", "[mock]", "traceback", "exception"]
 
 
@@ -23,10 +29,11 @@ def _check_record(record: DatasetRecord) -> tuple[list[str], float]:
         score = 0.0
         return flags, score
 
-    # Short response
-    if len(record.response.strip()) < MIN_RESPONSE_LEN:
+    # Short response — skip for classification records (per_entity, per_type)
+    is_classification = record.source in ("per_entity", "per_type")
+    if not is_classification and len(record.response.strip()) < MIN_RESPONSE_LEN:
         flags.append("short_response")
-        score -= 0.3
+        score -= SHORT_RESPONSE_PENALTY
 
     # Empty messages
     if not record.messages:
@@ -43,14 +50,14 @@ def _check_record(record: DatasetRecord) -> tuple[list[str], float]:
 
     if not has_user_message:
         flags.append("no_user_message")
-        score -= 0.3
+        score -= NO_USER_MESSAGE_PENALTY
 
     # Error-tainted content
     response_lower = record.response.lower()
     for marker in ERROR_MARKERS:
         if marker in response_lower:
             flags.append(f"error_marker:{marker}")
-            score -= 0.8
+            score -= ERROR_MARKER_PENALTY
             break
 
     # Clamp score
@@ -83,20 +90,19 @@ def evaluate_records(
             expected = golden[record.content_hash]
             if record.response.strip() != expected.strip():
                 flags.append("golden_mismatch")
-                score = max(0.0, score - 0.5)
+                score = max(0.0, score - GOLDEN_MISMATCH_PENALTY)
 
-        # Judge check — blend judge score with rule-based score
+        # Judge check
         judge = judge_map.get(str(record.record_id))
         if judge:
-            # Normalize judge 1-5 to 0-1, blend 50/50 with rule score
             judge_normalized = (judge.judge_score - 1) / 4.0
-            score = (score + judge_normalized) / 2.0
+            score = score * (1 - JUDGE_BLEND_WEIGHT) + judge_normalized * JUDGE_BLEND_WEIGHT
             flags.append(f"judge:{judge.judge_score}/5")
 
         # Decision
-        if score > 0.7:
+        if score > ACCEPT_THRESHOLD:
             decision = "accepted"
-        elif score > 0.3:
+        elif score > REVIEW_THRESHOLD:
             decision = "needs_review"
         else:
             decision = "rejected"

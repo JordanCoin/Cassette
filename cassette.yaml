@@ -34,7 +34,7 @@ split_strategy: full
 hash_prefix_len: 16
 
 # Evaluation
-min_response_len: 5
+min_response_len: 3
 min_message_content_len: 2
 accept_threshold: 0.7
 review_threshold: 0.3
