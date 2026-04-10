@@ -54,3 +54,26 @@ class Trace(BaseModel):
     response: str = ""
     token_count: int | None = None
     latency_ms: float | None = None
+
+
+class DatasetRecord(BaseModel):
+    """One curated training candidate extracted from system traces."""
+
+    record_id: UUID
+    trace_id: UUID
+    source: str = Field(description="Origin: chat, gather_sources, etc.")
+    messages: list[dict[str, Any]]
+    response: str
+    model: str
+    quality: str = Field(default="unreviewed", description="unreviewed, accepted, rejected")
+    content_hash: str = Field(description="For deduplication")
+
+
+class EvalResult(BaseModel):
+    """Result of evaluating one DatasetRecord."""
+
+    record_id: UUID
+    content_hash: str
+    decision: str = Field(description="accepted, rejected, needs_review")
+    flags: list[str] = Field(default_factory=list, description="Reasons for the decision")
+    score: float = Field(default=1.0, description="0.0–1.0 quality score")

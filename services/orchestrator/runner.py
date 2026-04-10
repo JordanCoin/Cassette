@@ -68,6 +68,12 @@ def run_stage(
         task = updated
     _emit(event_store, task, "stage.started", {"stage": stage.name})
 
+    # Inject emitter for stages to use for step-level events
+    def stage_emit(event_type: str, payload: dict[str, Any] | None = None) -> None:
+        _emit(event_store, task, event_type, payload)
+
+    context = {**context, "_emit": stage_emit}
+
     # Execute
     try:
         result = stage.run(context)

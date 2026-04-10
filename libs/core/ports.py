@@ -6,7 +6,7 @@ can be swapped per environment (file, SQLite, S3, etc.).
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from libs.core.contracts import Event, Task, TaskStatus, Trace
 
@@ -41,6 +41,22 @@ class TaskStore(Protocol):
     def get_latest_tasks(self, n: int) -> list[Task]: ...
 
     def update_task_status(self, task_id: str, status: TaskStatus) -> Task | None: ...
+
+
+class WebSearch(Protocol):
+    """Searches the web and returns normalized results."""
+
+    def search(self, query: str) -> list[dict[str, Any]]:
+        """Returns a list of results, each with at least 'title', 'url', 'snippet'."""
+        ...
+
+
+class WebFetch(Protocol):
+    """Fetches a URL and returns normalized content."""
+
+    def fetch(self, url: str) -> dict[str, Any]:
+        """Returns at least 'url', 'status', 'content' (truncated text)."""
+        ...
 
 
 class ModelProvider(Protocol):

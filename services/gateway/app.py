@@ -144,6 +144,84 @@ async def debug_events(
     return [r.model_dump(mode="json") for r in records]
 
 
+@app.post("/debug/extract-dataset")
+async def extract_dataset(
+    limit: int = Query(default=200, ge=1, le=10000),
+) -> dict[str, Any]:
+    from libs.adapters.dataset_writer import write_dataset
+    from libs.core.extractor import extract_records
+
+    traces = store.get_latest_traces(limit)
+    records = extract_records(traces)
+    output_path = store._dir / "dataset.jsonl"
+    count = write_dataset(records, output_path)
+    return {
+        "traces_scanned": len(traces),
+        "records_extracted": count,
+        "output_path": str(output_path),
+    }
+
+
+@app.post("/debug/evaluate-dataset")
+async def evaluate_dataset(
+    limit: int = Query(default=200, ge=1, le=10000),
+) -> dict[str, Any]:
+    from libs.adapters.dataset_writer import write_dataset
+    from libs.adapters.eval_writer import write_eval_results
+    from libs.core.evaluator import evaluate_records
+    from libs.core.extractor import extract_records
+
+    traces = store.get_latest_traces(limit)
+    records = extract_records(traces)
+    dataset_path = store._dir / "dataset.jsonl"
+    write_dataset(records, dataset_path)
+
+    results = evaluate_records(records)
+    eval_path = store._dir / "eval_results.jsonl"
+    write_eval_results(results, eval_path)
+
+    accepted = sum(1 for r in results if r.decision == "accepted")
+    rejected = sum(1 for r in results if r.decision == "rejected")
+    needs_review = sum(1 for r in results if r.decision == "needs_review")
+
+    return {
+        "records_evaluated": len(results),
+        "accepted": accepted,
+        "rejected": rejected,
+        "needs_review": needs_review,
+        "eval_path": str(eval_path),
+    }
+
+
+@app.post("/debug/promote-dataset")
+async def promote_dataset(
+    limit: int = Query(default=200, ge=1, le=10000),
+) -> dict[str, Any]:
+    from libs.adapters.dataset_writer import write_dataset
+    from libs.core.evaluator import evaluate_records
+    from libs.core.extractor import extract_records
+    from libs.core.promoter import apply_eval_decisions, select_promoted
+
+    traces = store.get_latest_traces(limit)
+    records = extract_records(traces)
+    results = evaluate_records(records)
+
+    labeled = apply_eval_decisions(records, results)
+    labeled_path = store._dir / "dataset_labeled.jsonl"
+    write_dataset(labeled, labeled_path)
+
+    promoted = select_promoted(labeled)
+    promoted_path = store._dir / "dataset_promoted.jsonl"
+    promoted_count = write_dataset(promoted, promoted_path)
+
+    return {
+        "total_records": len(labeled),
+        "promoted": promoted_count,
+        "labeled_path": str(labeled_path),
+        "promoted_path": str(promoted_path),
+    }
+
+
 # -- Task ledger endpoints --
 
 
@@ -222,20 +300,31 @@ async def update_task(task_id: str, request: UpdateTaskRequest) -> dict[str, Any
 async def orchestrator_run(
     request: dict[str, Any],
 ) -> dict[str, Any]:
+    from libs.adapters.http_fetch import HttpFetchAdapter
+    from libs.adapters.http_search import HttpSearchAdapter
+    from libs.core.settings import get_search_url
     from services.orchestrator.runner import run_stage
-    from services.orchestrator.stages import EchoStage
+    from services.orchestrator.stages import EchoStage, GatherSourcesStage
 
     stage_name = request.get("stage", "echo")
     context = request.get("context", {})
+    available = "echo, gather_sources"
 
-    if stage_name != "echo":
+    if stage_name == "echo":
+        stage = EchoStage()
+    elif stage_name == "gather_sources":
+        stage = GatherSourcesStage(  # type: ignore[assignment]
+            search=HttpSearchAdapter(get_search_url()),
+            fetch=HttpFetchAdapter(),
+        )
+    else:
         return JSONResponse(  # type: ignore[return-value]
             status_code=422,
-            content={"error": f"Unknown stage: {stage_name!r}. Available: echo"},
+            content={"error": f"Unknown stage: {stage_name!r}. Available: {available}"},
         )
 
     result = run_stage(
-        stage=EchoStage(),
+        stage=stage,
         context=context,
         task_store=store,
         event_store=store,

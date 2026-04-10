@@ -11,3 +11,7 @@ def get_provider_name() -> str:
 
 def get_llama_cpp_url() -> str:
     return os.environ.get("CASSETTE_LLAMA_CPP_URL", "http://localhost:8080")
+
+
+def get_search_url() -> str:
+    return os.environ.get("CASSETTE_SEARCH_URL", "http://localhost:8888")
