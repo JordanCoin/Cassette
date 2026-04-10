@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from libs.core.contracts import DatasetSnapshot, TrainingProposal
+from libs.core.contracts import DatasetSnapshot
 from libs.core.ports import WebFetch, WebSearch
+from libs.core.training_plan import build_proposal
 
 # Type alias for the emitter callback injected by the runner.
 EmitFn = Callable[[str, dict[str, Any] | None], None]
@@ -109,12 +110,6 @@ class GatherSourcesStage:
         }
 
 
-# Rough token estimate: ~200 tokens per record (messages + response)
-_TOKENS_PER_RECORD = 200
-_DEFAULT_BASE_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-_MIN_RECORDS_FOR_TRAINING = 10
-
-
 class ProposeTrainingStage:
     """Generates a training proposal from a dataset snapshot."""
 
@@ -133,31 +128,11 @@ class ProposeTrainingStage:
 
         emit("proposal.started", {"snapshot_id": snapshot.snapshot_id})
 
-        if snapshot.record_count < _MIN_RECORDS_FOR_TRAINING:
-            method = "sft"
-            notes = (
-                f"Only {snapshot.record_count} records — below minimum "
-                f"({_MIN_RECORDS_FOR_TRAINING}). Training not recommended yet."
-            )
-        elif snapshot.record_count < 100:
-            method = "lora"
-            notes = "Small dataset. LoRA recommended for parameter efficiency."
-        else:
-            method = "qlora"
-            notes = "Sufficient data for QLoRA fine-tuning."
-
-        proposal = TrainingProposal(
-            snapshot_id=snapshot.snapshot_id,
-            record_count=snapshot.record_count,
-            base_model=_DEFAULT_BASE_MODEL,
-            method=method,
-            estimated_tokens=snapshot.record_count * _TOKENS_PER_RECORD,
-            notes=notes,
-        )
+        proposal = build_proposal(snapshot.snapshot_id, snapshot.record_count)
 
         emit("proposal.completed", {
             "snapshot_id": snapshot.snapshot_id,
-            "method": method,
+            "method": proposal.method,
             "estimated_tokens": proposal.estimated_tokens,
         })
 

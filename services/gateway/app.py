@@ -360,3 +360,15 @@ async def orchestrator_run(
         event_store=store,
     )
     return result
+
+
+# -- Full loop trigger --
+
+
+@app.post("/loop/run")
+async def loop_run(
+    limit: int = Query(default=200, ge=1, le=10000),
+) -> dict[str, Any]:
+    from libs.core.pipeline import run_full_loop
+
+    return run_full_loop(store, store._dir, trace_limit=limit)
