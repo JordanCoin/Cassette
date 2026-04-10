@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from libs.core.contracts import TrainingProposal
+from libs.core.settings import get_model_name
 
 TOKENS_PER_RECORD = 200
-DEFAULT_BASE_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 MIN_RECORDS_FOR_TRAINING = 10
+
+
+def _resolve_base_model() -> str:
+    """Use the configured model from CASSETTE_MODEL."""
+    return get_model_name()
 
 
 def select_method(record_count: int) -> str:
@@ -33,7 +38,7 @@ def build_proposal(snapshot_id: str, record_count: int) -> TrainingProposal:
     return TrainingProposal(
         snapshot_id=snapshot_id,
         record_count=record_count,
-        base_model=DEFAULT_BASE_MODEL,
+        base_model=_resolve_base_model(),
         method=select_method(record_count),
         estimated_tokens=record_count * TOKENS_PER_RECORD,
         notes=training_notes(record_count),

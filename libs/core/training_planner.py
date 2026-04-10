@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from libs.core.contracts import DatasetSnapshot, TrainingPlan
-from libs.core.training_plan import DEFAULT_BASE_MODEL, TOKENS_PER_RECORD, select_method
+from libs.core.training_plan import TOKENS_PER_RECORD, _resolve_base_model, select_method
 
 
 def _build_command(plan: TrainingPlan) -> str:
@@ -61,7 +61,7 @@ def build_training_plan(
     plan = TrainingPlan(
         snapshot_id=snapshot.snapshot_id,
         dataset_path=str(dataset_path),
-        base_model=DEFAULT_BASE_MODEL,
+        base_model=_resolve_base_model(),
         method=method,
         estimated_tokens=record_count * TOKENS_PER_RECORD,
         output_dir=str(output_dir),
