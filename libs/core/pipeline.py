@@ -18,7 +18,7 @@ from libs.core.extractor import extract_records
 from libs.core.metrics import registry as metrics
 from libs.core.ports import EventStore
 from libs.core.promoter import apply_eval_decisions, select_promoted
-from libs.core.snapshots import create_snapshot
+from libs.core.snapshots import create_snapshot, list_snapshots
 from libs.core.training_plan import build_proposal
 
 
@@ -113,7 +113,6 @@ def run_full_loop(
         snapshot = create_snapshot(promoted_path, snapshots_dir)
     except FileExistsError:
         # Snapshot already exists for this exact content — reuse it
-        from libs.core.snapshots import list_snapshots
 
         snapshots = list_snapshots(data_dir / "snapshots")
         snapshot = snapshots[-1] if snapshots else None  # type: ignore[assignment]

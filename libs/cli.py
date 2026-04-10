@@ -7,16 +7,27 @@ import json
 import sys
 from pathlib import Path
 
+import httpx  # noqa: E402
+
 from libs.adapters.dataset_writer import write_dataset
 from libs.adapters.jsonl_store import JsonlStore
+from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
+from libs.core.comparator import compare_models
 from libs.core.config import get_float, get_str
 from libs.core.evaluator import evaluate_records
 from libs.core.extractor import extract_records
+from libs.core.judge import judge_records
+from libs.core.model_exporter import export_model
+from libs.core.model_registry import to_hf_name
 from libs.core.pipeline import run_full_loop
 from libs.core.promoter import apply_eval_decisions, select_promoted
 from libs.core.provider_registry import resolve_provider
+from libs.core.recorder import record_chat
 from libs.core.snapshots import create_snapshot, list_snapshots
+from libs.core.train_runner import run_training
 from libs.core.training_plan import build_proposal
+from libs.core.training_planner import build_training_plan
+from libs.core.training_validator import validate_training
 
 DEFAULT_DATA_DIR = Path(get_str("data_dir"))
 
@@ -84,7 +95,6 @@ def cmd_run_loop(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
 
     if args.query:
-        from libs.core.recorder import record_chat
 
         record_chat(
             store,
@@ -183,7 +193,6 @@ def cmd_propose_training(args: argparse.Namespace) -> int:
 
 
 def cmd_plan_training(args: argparse.Namespace) -> int:
-    from libs.core.training_planner import build_training_plan
 
     data_dir = Path(args.data_dir)
     snapshots_dir = data_dir / "snapshots"
@@ -232,8 +241,6 @@ def cmd_plan_training(args: argparse.Namespace) -> int:
 
 
 def cmd_validate_training(args: argparse.Namespace) -> int:
-    from libs.core.training_planner import build_training_plan
-    from libs.core.training_validator import validate_training
 
     data_dir = Path(args.data_dir)
     snapshots_dir = data_dir / "snapshots"
@@ -290,10 +297,6 @@ def cmd_validate_training(args: argparse.Namespace) -> int:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
-    from libs.core.model_registry import to_hf_name
-    from libs.core.train_runner import run_training
-    from libs.core.training_planner import build_training_plan
-    from libs.core.training_validator import validate_training
 
     data_dir = Path(args.data_dir)
     snapshots_dir = data_dir / "snapshots"
@@ -367,8 +370,6 @@ def cmd_train(args: argparse.Namespace) -> int:
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
-    from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
-    from libs.core.comparator import compare_models
 
     data_dir = Path(args.data_dir)
     snapshots_dir = data_dir / "snapshots"
@@ -472,7 +473,6 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     # Optional LLM-as-judge
     judge_results = None
     if getattr(args, "use_judge", False):
-        from libs.core.judge import judge_records
 
         prov = resolve_provider(get_str("provider"))
         print("  Running LLM-as-judge evaluation...", file=sys.stderr)
@@ -577,7 +577,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     # 4. Search endpoint
     search_url = get_str("search_url")
     try:
-        import httpx
 
         httpx.get(f"{search_url}/", timeout=3.0)
         checks.append({"check": "search_endpoint", "status": "ok", "url": search_url})
@@ -655,7 +654,6 @@ def cmd_demo(args: argparse.Namespace) -> int:
     print()
 
     # Seed queries
-    from libs.core.recorder import record_chat
 
     for query in _DEMO_QUERIES:
         record_chat(
@@ -693,7 +691,6 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def cmd_export_model(args: argparse.Namespace) -> int:
-    from libs.core.model_exporter import export_model
 
     data_dir = Path(args.data_dir)
 

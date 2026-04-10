@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from libs.core.contracts import TrainingPlan, TrainingReadiness
+from libs.core.model_registry import is_known_model, to_hf_name
 
 
 def _check_dataset(plan: TrainingPlan) -> tuple[list[str], list[str]]:
@@ -28,7 +29,6 @@ def _check_dataset(plan: TrainingPlan) -> tuple[list[str], list[str]]:
 
 
 def _check_model(plan: TrainingPlan) -> tuple[list[str], list[str]]:
-    from libs.core.model_registry import is_known_model, to_hf_name
 
     issues: list[str] = []
     warnings: list[str] = []

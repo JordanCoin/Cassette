@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
+
+from libs.core.config import get_float, get_int
 
 
 def prepare_dataset(snapshot_path: Path) -> list[dict[str, list[dict[str, str]]]]:
@@ -45,10 +48,6 @@ def run_training(
             "error": f"Missing training dependency: {exc}. "
             "Install with: pip install cassette[training]",
         }
-
-    import time
-
-    from libs.core.config import get_float, get_int
 
     epochs = get_int("train_epochs")
     batch_size = get_int("train_batch_size")
