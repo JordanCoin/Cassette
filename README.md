@@ -83,6 +83,29 @@ All of it feeds a continuous loop:
 
 ---
 
+## Testing with a Real Backend
+
+```bash
+# 1. Start a local model server (llama.cpp example)
+llama-server -m your-model.gguf --port 8080
+
+# 2. Run integration tests
+CASSETTE_INTEGRATION=1 \
+CASSETTE_PROVIDER=llama_cpp_http \
+CASSETTE_LLAMA_CPP_URL=http://localhost:8080 \
+uv run pytest tests/test_integration_real.py -v
+
+# 3. What "good" output looks like:
+#   test_health_check_reachable PASSED
+#   test_single_completion PASSED
+#   test_full_loop_with_query PASSED
+#   test_persisted_files_exist PASSED
+```
+
+Integration tests are skipped by default so the fast test suite stays deterministic.
+
+---
+
 ## CLI Reference
 
 ```

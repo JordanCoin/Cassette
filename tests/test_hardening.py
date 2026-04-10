@@ -67,7 +67,7 @@ class TestProviderTimeout:
         resp = httpx.Response(200, json={"choices": []}, request=_FAKE_REQ)
         mock_post.return_value = resp
         provider = LlamaCppHttpProvider("http://localhost:8080")
-        with pytest.raises(ProviderResponseError, match="no choices"):
+        with pytest.raises(ProviderResponseError, match="No choices"):
             provider.complete([{"role": "user", "content": "hi"}])
 
     def test_custom_timeout_value(self) -> None:

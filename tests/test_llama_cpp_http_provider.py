@@ -57,11 +57,12 @@ class TestLlamaCppHttpProvider:
         assert "/v1/chat/completions" in call_kwargs[0][0]
 
     @patch("libs.adapters.llama_cpp_http_provider.httpx.post", side_effect=_mock_success)
-    def test_passes_messages(self, mock_post: Any) -> None:
+    def test_passes_messages_and_model(self, mock_post: Any) -> None:
         provider = LlamaCppHttpProvider("http://localhost:8080")
         provider.complete(MESSAGES)
         payload = mock_post.call_args[1]["json"]
         assert payload["messages"] == MESSAGES
+        assert payload["model"] == "default"
 
     @patch("libs.adapters.llama_cpp_http_provider.httpx.post", side_effect=_mock_connection_error)
     def test_connection_failure_raises(self, mock_post: Any) -> None:
@@ -78,8 +79,16 @@ class TestLlamaCppHttpProvider:
     @patch("libs.adapters.llama_cpp_http_provider.httpx.post", side_effect=_mock_empty_choices)
     def test_empty_choices_raises(self, mock_post: Any) -> None:
         provider = LlamaCppHttpProvider("http://localhost:8080")
-        with pytest.raises(RuntimeError, match="returned no choices"):
+        with pytest.raises(RuntimeError, match="No choices in response"):
             provider.complete(MESSAGES)
+
+    @patch("libs.adapters.llama_cpp_http_provider.httpx.post")
+    def test_text_response_shape(self, mock_post: Any) -> None:
+        """Some backends return choices[0].text instead of message.content."""
+        alt_response = {"choices": [{"text": "alt response", "index": 0}]}
+        mock_post.return_value = httpx.Response(200, json=alt_response, request=_FAKE_REQUEST)
+        provider = LlamaCppHttpProvider("http://localhost:8080")
+        assert provider.complete(MESSAGES) == "alt response"
 
     @patch("libs.adapters.llama_cpp_http_provider.httpx.post", side_effect=_mock_success)
     def test_strips_trailing_slash_from_base_url(self, mock_post: Any) -> None:
