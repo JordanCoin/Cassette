@@ -2,49 +2,37 @@
 
 ## Current Status
 
-Milestones 1–21 complete. The foundation is built and hardened.
+**v0.1.0** — Milestones 1–27 complete. Open source ready.
 
 ## What Exists
 
-* Python project scaffold with uv, ruff, mypy, pytest (253 tests passing)
-* Canonical Pydantic contracts: Event, Task, Trace, DatasetRecord, EvalResult, DatasetSnapshot, TrainingProposal
-* FastAPI gateway with:
-  * `/healthz`, `/healthz/provider`
-  * `POST /v1/chat/completions` (OpenAI-compatible, mock + llama.cpp HTTP providers)
-  * `/metrics` (Prometheus text format)
-  * Task ledger CRUD (`/tasks`)
-  * Debug read endpoints (`/debug/traces`, `/debug/events`)
-  * Data pipeline endpoints (`/debug/extract-dataset`, `/debug/evaluate-dataset`, `/debug/promote-dataset`, `/debug/snapshot-dataset`, `/debug/snapshots`)
-  * Full loop trigger (`/loop/run`)
-  * Orchestrator trigger (`/orchestrator/run`)
-* CLI (`cassette`) with: run-loop, extract-dataset, evaluate-dataset, snapshot-dataset, list-snapshots, propose-training, health
-* JSONL append-only persistence with read-back
-* ModelProvider abstraction with mock and llama.cpp HTTP backends
-* Settings via environment variables
-* Enriched trace/event recording with backend metadata and failure recording
-* Orchestrator with Stage protocol, stage runner, and stages: echo, gather_sources, propose_training
-* Web tooling: WebSearch/WebFetch ports with HTTP adapters
-* Fine-grained event instrumentation within stages
-* Dataset extraction, evaluation, promotion, and versioned snapshots
-* Training proposal generation from snapshot metadata
-* Prometheus-style metrics (requests, provider calls, tasks, stages, loop runs)
-* Provider hardening: timeout handling, error classification, health checks
-* Data sanity guards in extraction
+The full observe-to-plan pipeline runs locally:
+
+* **Gateway** — OpenAI-compatible API, health checks, Prometheus metrics
+* **Provider abstraction** — mock + llama.cpp HTTP backends with timeout/error handling
+* **Trace/event system** — structured JSONL recording of all system activity
+* **Task ledger** — status-tracked units of work
+* **Orchestrator** — stage-based runner (echo, gather_sources, propose_training, plan_training, validate_training)
+* **Web tooling** — search + fetch adapters with event instrumentation
+* **Data pipeline** — extract → evaluate → promote → snapshot → propose → plan → validate
+* **Dataset versioning** — immutable snapshots with content hashing
+* **Training planning** — concrete plans with TRL commands and hardware validation
+* **CLI** — 11 commands including demo, doctor, and full pipeline
+* **Docker Compose** — containerized deployment with optional backend/search
+* **Metrics** — Prometheus-compatible counters for requests, providers, stages, loops
+* **298 tests** passing, strict typing, linting
 
 ## What's Next
 
-Potential next milestones (pick based on priority):
+See GitHub issues for planned work:
 
-1. **Real model backend integration** — wire up a live llama.cpp or vLLM server and validate end-to-end
-2. **Docker Compose stack** — containerized deployment with gateway + model server
-3. **Configuration file** — replace env vars with a unified config.yaml supporting profiles (laptop, workstation, cluster)
-4. **Dataset versioning with DVC** — integrate DVC for Git-like dataset/model versioning
-5. **Evaluation harness expansion** — add LLM-as-judge, golden test suites, regression detection
-6. **Training execution** — LoRA/QLoRA training via TRL/Axolotl, gated by evaluation results
+* **Training execution** — LoRA/QLoRA via TRL with gated promotion
+* **LLM-as-judge evaluation** — model-based quality scoring for dataset curation
 
-## Constraints (unchanged)
+## Design Principles
 
-* Keep implementation minimal
-* Do not add training logic without evaluation gates
-* Do not add orchestration complexity without justification
-* Preserve modular architecture for later scale
+* Everything is recorded and traceable
+* No training without evaluation gates
+* Prefer honesty over capability (fail clearly, don't pretend)
+* Local-first, scales to GPU/Kubernetes
+* Systems over scripts

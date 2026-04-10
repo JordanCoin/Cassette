@@ -236,6 +236,22 @@ services/orchestrator/ — stage runner and stages
 
 ---
 
+## Limitations
+
+Cassette runs fully locally and supports the complete observe-to-plan pipeline. Actual model training is hardware-dependent and may require a GPU.
+
+Current limitations:
+
+* **No training execution yet** — Cassette plans and validates training but does not run it
+* **No LLM-as-judge evaluation** — evaluation is rule-based (structural checks, golden tests)
+* **No DVC integration** — dataset versioning is file-based snapshots, not Git-tracked
+* **Single provider at a time** — no multi-model routing or fallback chains
+* **No auth** — all endpoints are open (intended for local/dev use)
+
+These are intentional scope boundaries, not bugs. See [TASK.md](TASK.md) for what's next.
+
+---
+
 ## Design Constraints
 
 * Must run on a **low-resource machine** (Intel MacBook, CPU-only)
@@ -250,6 +266,14 @@ services/orchestrator/ — stage runner and stages
 Cassette treats intelligence as a **process, not a model**.
 
 Models are temporary. The loop is the product.
+
+---
+
+## Contributing
+
+Cassette is early-stage and built for iteration. Issues and PRs welcome.
+
+See [AGENTS.md](AGENTS.md) for development rules and [PROGRAM.md](PROGRAM.md) for the build loop.
 
 ---
 
