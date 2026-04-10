@@ -86,7 +86,7 @@ class TestDoctorCommand:
 class TestRunLoopWithQuery:
     def test_query_seeds_and_runs(self, tmp_path: Path) -> None:
         code, output = _capture_stdout([
-            "--data-dir", str(tmp_path), "run-loop", "--query", "test question",
+            "--data-dir", str(tmp_path), "run-loop", "--json", "--query", "test question",
         ])
         assert code == 0
         data = json.loads(output)
@@ -137,7 +137,7 @@ class TestHappyPath:
 
         # 2. Run loop with query
         code, output = _capture_stdout([
-            "--data-dir", d, "run-loop", "--query", "What is machine learning?",
+            "--data-dir", d, "run-loop", "--json", "--query", "What is machine learning?",
         ])
         assert code == 0
         result = json.loads(output)

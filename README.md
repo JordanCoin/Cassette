@@ -27,6 +27,12 @@ cassette list-snapshots
 
 That's it. Cassette is running in mock mode — no GPU or model server needed.
 
+Or run the guided demo:
+
+```bash
+cassette demo
+```
+
 ### Using a real model backend
 
 ```bash
@@ -109,16 +115,20 @@ Integration tests are skipped by default so the fast test suite stays determinis
 ## CLI Reference
 
 ```
+cassette demo                          # Guided demo of the full pipeline
 cassette doctor                        # Full system diagnostics
-cassette health                        # Quick provider + system check
-cassette run-loop                      # Full observe-to-proposal pipeline
-cassette run-loop --query "question"   # Seed a query, then run the loop
+cassette health                        # Quick provider and system check
+cassette run-loop                      # Run the observe-to-proposal pipeline
+cassette run-loop --query "question"   # Seed a query, then run the pipeline
+cassette run-loop --json               # Output raw JSON instead of summary
 cassette extract-dataset               # Extract dataset from traces
-cassette evaluate-dataset              # Evaluate + promote + write datasets
+cassette evaluate-dataset              # Evaluate, promote, and write datasets
 cassette snapshot-dataset              # Snapshot the promoted dataset
 cassette list-snapshots                # List available snapshots
 cassette propose-training              # Generate a training proposal
 ```
+
+See [examples/WALKTHROUGH.md](examples/WALKTHROUGH.md) for a detailed guide.
 
 All commands accept `--data-dir <path>` to override the data directory (default: `data/gateway`).
 

@@ -34,13 +34,55 @@ def _error(msg: str) -> int:
     return 1
 
 
+def _format_loop_result(result: dict[str, object]) -> str:
+    """Format a loop result as readable text."""
+    lines: list[str] = []
+    status = result.get("status", "unknown")
+    lines.append(f"  Status: {status}")
+
+    if result.get("note"):
+        lines.append(f"  Note:   {result['note']}")
+        return "\n".join(lines)
+
+    if result.get("failed_stage"):
+        lines.append(f"  Failed: {result['failed_stage']}")
+        lines.append(f"  Error:  {result.get('error', '')}")
+        return "\n".join(lines)
+
+    extracted = result.get("extracted", 0)
+    lines.append(f"  Extracted:  {extracted} records from traces")
+
+    ev = result.get("evaluation")
+    if isinstance(ev, dict):
+        lines.append(
+            f"  Evaluated:  {ev.get('accepted', 0)} accepted, "
+            f"{ev.get('rejected', 0)} rejected, "
+            f"{ev.get('needs_review', 0)} needs review"
+        )
+
+    promoted = result.get("promoted", 0)
+    lines.append(f"  Promoted:   {promoted} records")
+
+    snap = result.get("snapshot")
+    if isinstance(snap, dict):
+        lines.append(f"  Snapshot:   {snap.get('snapshot_id', 'n/a')}")
+
+    prop = result.get("proposal")
+    if isinstance(prop, dict):
+        lines.append(
+            f"  Proposal:   {prop.get('method', '?')} on {prop.get('base_model', '?')} "
+            f"(~{prop.get('estimated_tokens', 0)} tokens)"
+        )
+
+    return "\n".join(lines)
+
+
 # -- Commands --
 
 
 def cmd_run_loop(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
 
-    # Seed a trace from --query if provided and no traces exist yet
     if args.query:
         from libs.core.recorder import record_chat
 
@@ -52,10 +94,27 @@ def cmd_run_loop(args: argparse.Namespace) -> int:
             latency_ms=0.0,
             provider="cli",
         )
-        print("Recorded query as trace. Running loop...", file=sys.stderr)
+        print("Recorded query as trace.", file=sys.stderr)
 
     result = run_full_loop(store, Path(args.data_dir), trace_limit=args.limit)
-    _print_json(result)
+
+    if args.json:
+        _print_json(result)
+    else:
+        print()
+        print(_format_loop_result(result))
+        print()
+        data_dir = Path(args.data_dir)
+        print("  Artifacts:")
+        for name in ["traces.jsonl", "events.jsonl", "dataset_promoted.jsonl"]:
+            p = data_dir / name
+            if p.exists():
+                print(f"    {p}")
+        snap_dir = data_dir / "snapshots"
+        if snap_dir.exists():
+            print(f"    {snap_dir}/")
+        print()
+
     return 0 if result.get("status") == "completed" else 1
 
 
@@ -290,6 +349,64 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if all_ok else 1
 
 
+_DEMO_QUERIES = [
+    "What is gradient descent and why does it matter for neural networks?",
+    "Explain the difference between LoRA and full fine-tuning.",
+    "How does a transformer attention mechanism work?",
+]
+
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    """Run a demo workflow that shows the full Cassette pipeline."""
+    data_dir = Path(args.data_dir)
+    store = _get_store(data_dir)
+
+    print()
+    print("  Cassette Demo")
+    print("  =============")
+    print()
+    print("  This demo seeds sample queries, runs the full pipeline,")
+    print("  and shows where to find the results.")
+    print()
+
+    # Seed queries
+    from libs.core.recorder import record_chat
+
+    for query in _DEMO_QUERIES:
+        record_chat(
+            store,
+            model="demo",
+            messages=[{"role": "user", "content": query}],
+            response=f"[demo] Recorded: {query[:50]}",
+            latency_ms=0.0,
+            provider="demo",
+        )
+        print(f"  Seeded: {query[:60]}...")
+
+    print()
+    print("  Running pipeline: extract -> evaluate -> promote -> snapshot -> propose")
+    print()
+
+    result = run_full_loop(store, data_dir, trace_limit=200)
+    print(_format_loop_result(result))
+    print()
+
+    # Show artifacts
+    print("  Where to find results:")
+    print(f"    Traces:     {data_dir / 'traces.jsonl'}")
+    print(f"    Events:     {data_dir / 'events.jsonl'}")
+    print(f"    Dataset:    {data_dir / 'dataset_promoted.jsonl'}")
+    print(f"    Snapshots:  {data_dir / 'snapshots/'}")
+    print()
+    print("  Next steps:")
+    print("    cassette list-snapshots         # see versioned datasets")
+    print("    cassette propose-training       # see training plan")
+    print("    cassette doctor                 # check system health")
+    print()
+
+    return 0 if result.get("status") == "completed" else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cassette", description="Cassette CLI")
     parser.add_argument(
@@ -298,9 +415,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    run_loop = sub.add_parser("run-loop", help="Run the full observe-to-proposal loop")
+    run_loop = sub.add_parser("run-loop", help="Run the full observe-to-proposal pipeline")
     run_loop.add_argument("--limit", type=int, default=200, help="Max traces to scan")
-    run_loop.add_argument("--query", default=None, help="Seed a query before running the loop")
+    run_loop.add_argument("--query", default=None, help="Seed a query before running")
+    run_loop.add_argument("--json", action="store_true", help="Output raw JSON instead of summary")
 
     extract = sub.add_parser("extract-dataset", help="Extract dataset from traces")
     extract.add_argument("--limit", type=int, default=200, help="Max traces to scan")
@@ -315,8 +433,9 @@ def build_parser() -> argparse.ArgumentParser:
     propose = sub.add_parser("propose-training", help="Generate a training proposal")
     propose.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
 
-    sub.add_parser("health", help="Check system and provider health")
-    sub.add_parser("doctor", help="Run full system diagnostics with pass/fail checks")
+    sub.add_parser("health", help="Quick provider and system check")
+    sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
+    sub.add_parser("demo", help="Run a sample workflow showing the full pipeline")
 
     return parser
 
@@ -330,6 +449,7 @@ _COMMANDS = {
     "propose-training": cmd_propose_training,
     "health": cmd_health,
     "doctor": cmd_doctor,
+    "demo": cmd_demo,
 }
 
 
