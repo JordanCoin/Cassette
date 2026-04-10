@@ -16,9 +16,10 @@ class ProviderResponseError(RuntimeError):
 class LlamaCppHttpProvider:
     """Sends chat completions to a llama.cpp server over HTTP."""
 
-    def __init__(self, base_url: str, timeout: float = 60.0) -> None:
+    def __init__(self, base_url: str, timeout: float = 60.0, model: str = "default") -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._model = model
 
     @property
     def name(self) -> str:
@@ -28,7 +29,7 @@ class LlamaCppHttpProvider:
         """Call the backend and return the assistant message content."""
         url = f"{self._base_url}/v1/chat/completions"
         payload: dict[str, object] = {
-            "model": "default",
+            "model": self._model,
             "messages": messages,
         }
         try:

@@ -19,3 +19,7 @@ def get_search_url() -> str:
 
 def get_provider_timeout() -> float:
     return float(os.environ.get("CASSETTE_PROVIDER_TIMEOUT", "60"))
+
+
+def get_model_name() -> str:
+    return os.environ.get("CASSETTE_MODEL", "default")
