@@ -288,7 +288,8 @@ def cmd_validate_training(args: argparse.Namespace) -> int:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
-    from libs.core.training_executor import execute_training
+    from libs.core.model_registry import to_hf_name
+    from libs.core.train_runner import run_training
     from libs.core.training_planner import build_training_plan
     from libs.core.training_validator import validate_training
 
@@ -316,7 +317,10 @@ def cmd_train(args: argparse.Namespace) -> int:
     except ValueError as exc:
         return _error(str(exc))
 
+    hf_model = to_hf_name(plan.base_model)
     print(f"\n  Plan: {plan.method} on {plan.base_model}")
+    if hf_model != plan.base_model:
+        print(f"  HuggingFace model: {hf_model}")
     print(f"  Dataset: {plan.dataset_path}")
     print(f"  Output: {plan.output_dir}")
 
@@ -334,28 +338,30 @@ def cmd_train(args: argparse.Namespace) -> int:
         for w in readiness.warnings:
             print(f"    - {w}")
 
-    print("\n  Starting training...")
+    print("\n  Starting training...\n")
 
     # Execute
-    result = execute_training(plan, timeout=args.timeout)
+    result = run_training(
+        model_name=hf_model,
+        dataset_path=Path(plan.dataset_path),
+        output_dir=Path(plan.output_dir),
+        method=plan.method,
+    )
 
-    if result.success:
-        print(f"\n  Training completed in {result.duration_sec:.1f}s")
-        print(f"  Output: {result.output_dir}")
-        if result.stdout_tail:
-            print("\n  Last output:")
-            for line in result.stdout_tail.split("\n")[-5:]:
-                print(f"    {line}")
+    if result.get("success"):
+        print(f"\n  Training completed in {result['duration_sec']}s")
+        print(f"  Output: {result['output_dir']}")
+        print(f"  Records: {result['records']}")
         print()
     else:
-        print(f"\n  Training FAILED (exit code {result.exit_code})")
-        print(f"  Error: {result.error}")
+        print(f"\n  Training FAILED")
+        print(f"  Error: {result.get('error', 'unknown')}")
         print()
 
     if args.json:
-        _print_json(result.model_dump(mode="json"))
+        _print_json(result)
 
-    return 0 if result.success else 1
+    return 0 if result.get("success") else 1
 
 
 def cmd_compare(args: argparse.Namespace) -> int:

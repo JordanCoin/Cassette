@@ -20,6 +20,9 @@ _OLLAMA_TO_HF: dict[str, str] = {
     "mistral:latest": "mistralai/Mistral-7B-Instruct-v0.3",
     "qwen3:8b": "Qwen/Qwen3-8B",
     "qwen3.5:9b": "Qwen/Qwen3.5-9B",
+    "qwen2.5:1.5b": "Qwen/Qwen2.5-1.5B-Instruct",
+    "qwen2.5:3b": "Qwen/Qwen2.5-3B-Instruct",
+    "qwen2.5:7b": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 # Reverse mapping
