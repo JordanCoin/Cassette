@@ -12,9 +12,16 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class ResponseFormat(BaseModel):
+    type: str = "text"
+
+
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: list[ChatMessage] = Field(min_length=1)
+    response_format: ResponseFormat | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
 
 
 class ChatChoice(BaseModel):

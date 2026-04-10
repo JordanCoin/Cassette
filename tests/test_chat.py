@@ -113,7 +113,7 @@ class TestProviderIntegration:
             def name(self) -> str:
                 return "stub"
 
-            def complete(self, messages: list[dict[str, str]]) -> str:
+            def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
                 return "stub response"
 
         gateway_module.store = JsonlStore(tmp_path)

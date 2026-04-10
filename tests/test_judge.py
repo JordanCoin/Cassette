@@ -42,7 +42,7 @@ class MockJudgeProvider:
     def name(self) -> str:
         return "mock_judge"
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
         return json.dumps({"score": self._score, "reasoning": self._reasoning})
 
 
@@ -51,7 +51,7 @@ class FailingProvider:
     def name(self) -> str:
         return "failing"
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
         raise ConnectionError("provider down")
 
 
@@ -62,7 +62,7 @@ class GarbageProvider:
     def name(self) -> str:
         return "garbage"
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
         return "This is not JSON at all."
 
 

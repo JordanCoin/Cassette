@@ -25,13 +25,24 @@ class LlamaCppHttpProvider:
     def name(self) -> str:
         return "llama_cpp_http"
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(
+        self,
+        messages: list[dict[str, str]],
+        **kwargs: object,
+    ) -> str:
         """Call the backend and return the assistant message content."""
         url = f"{self._base_url}/v1/chat/completions"
         payload: dict[str, object] = {
             "model": self._model,
             "messages": messages,
         }
+        # Pass through optional params
+        if kwargs.get("response_format"):
+            payload["response_format"] = kwargs["response_format"]
+        if kwargs.get("temperature") is not None:
+            payload["temperature"] = kwargs["temperature"]
+        if kwargs.get("max_tokens") is not None:
+            payload["max_tokens"] = kwargs["max_tokens"]
         try:
             resp = httpx.post(url, json=payload, timeout=self._timeout)
             resp.raise_for_status()

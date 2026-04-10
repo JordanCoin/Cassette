@@ -55,7 +55,7 @@ class TestFailureRecording:
             def name(self) -> str:
                 return "failing"
 
-            def complete(self, messages: list[dict[str, str]]) -> str:
+            def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
                 raise exc
 
         gateway_module.store = JsonlStore(tmp_path)

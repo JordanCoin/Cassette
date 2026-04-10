@@ -10,5 +10,5 @@ class MockProvider:
     def name(self) -> str:
         return "mock"
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], **kwargs: object) -> str:
         return "This is a mock response."

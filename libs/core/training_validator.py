@@ -61,7 +61,7 @@ def _check_hardware(method: str) -> tuple[list[str], list[str]]:
 
     has_gpu = False
     try:
-        import torch  # type: ignore[import-not-found]
+        import torch
 
         has_gpu = torch.cuda.is_available()
         if not has_gpu:

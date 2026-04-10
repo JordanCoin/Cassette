@@ -83,9 +83,18 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     messages_raw = [m.model_dump() for m in request.messages]
     backend = _backend_url()
 
+    # Build extra params to pass through to provider
+    extra: dict[str, object] = {}
+    if request.response_format:
+        extra["response_format"] = request.response_format.model_dump()
+    if request.temperature is not None:
+        extra["temperature"] = request.temperature
+    if request.max_tokens is not None:
+        extra["max_tokens"] = request.max_tokens
+
     try:
         metrics.inc("cassette_provider_calls_total", labels={"provider": provider.name})
-        response_text = provider.complete(messages_raw)
+        response_text = provider.complete(messages_raw, **extra)
     except (ConnectionError, RuntimeError) as exc:
         metrics.inc("cassette_provider_failures_total", labels={"provider": provider.name})
         latency_ms = (time.monotonic() - start) * 1000
