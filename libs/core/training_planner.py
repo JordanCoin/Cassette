@@ -5,14 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from libs.core.contracts import DatasetSnapshot, TrainingPlan
+from libs.core.model_registry import to_hf_name
 from libs.core.training_plan import TOKENS_PER_RECORD, _resolve_base_model, select_method
 
 
 def _build_command(plan: TrainingPlan) -> str:
     """Generate a representative training command string."""
+    hf_model = to_hf_name(plan.base_model)
     parts = [
         "python -m trl sft",
-        f"--model_name_or_path {plan.base_model}",
+        f"--model_name_or_path {hf_model}",
         f"--dataset_path {plan.dataset_path}",
         f"--output_dir {plan.output_dir}",
     ]

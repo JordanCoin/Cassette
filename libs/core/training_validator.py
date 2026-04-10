@@ -28,17 +28,29 @@ def _check_dataset(plan: TrainingPlan) -> tuple[list[str], list[str]]:
 
 
 def _check_model(plan: TrainingPlan) -> tuple[list[str], list[str]]:
+    from libs.core.model_registry import is_known_model, to_hf_name
+
     issues: list[str] = []
     warnings: list[str] = []
     model = plan.base_model
-    # Check if it looks like a local path
-    if "/" not in model and not model.startswith("meta-"):
+    hf_model = to_hf_name(model)
+
+    if hf_model != model:
+        # Ollama name mapped to HuggingFace — that's fine
+        warnings.append(
+            f"Model '{model}' maps to '{hf_model}' for training"
+        )
+    elif "/" in model:
+        # Already a HuggingFace name
+        warnings.append(f"Model '{model}' will be downloaded from HuggingFace if not cached")
+    elif not is_known_model(model):
+        # Unknown name — might be a local path
         local = Path(model)
         if not local.exists():
-            issues.append(f"Model not found at local path: {model}")
-    # For HF-style IDs, we can't check without network — just note it
-    if "/" in model:
-        warnings.append(f"Model '{model}' will be downloaded from HuggingFace if not cached")
+            issues.append(
+                f"Unknown model: '{model}'. "
+                "Use a HuggingFace ID (org/model) or a known ollama tag"
+            )
     return issues, warnings
 
 
