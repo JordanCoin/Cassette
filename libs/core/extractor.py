@@ -15,6 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from libs.core.contracts import DatasetRecord, Trace
+from libs.core.prompt_loader import render_prompt
 
 SPLIT_STRATEGIES = ("full", "per_entity", "per_type")
 
@@ -103,12 +104,12 @@ def _split_per_entity(
         if not decision:
             continue
 
-        msg = (
-            f"Entity: '{raw}' | Type: {entity['type']} | "
-            f"Confidence: {entity['confidence']}\n"
-            f"Is this a real entity or junk? Answer: keep or remove."
+        msg = render_prompt(
+            "per_entity",
+            entity_type=entity["type"],
+            entity_text=raw,
         )
-        resp = f"{decision} — {entity['type']}: {raw}"
+        resp = decision
 
         messages: list[dict[str, Any]] = [{"role": "user", "content": msg}]
         h = _content_hash(messages, resp)
@@ -164,10 +165,10 @@ def _split_per_type(
         if not decision_lines:
             continue
 
-        msg = (
-            f"Entity type: {entity_type}\n"
-            f"Entities:\n" + "\n".join(entity_lines) + "\n\n"
-            "Which are real entities and which are junk?"
+        msg = render_prompt(
+            "per_type",
+            entity_type=entity_type,
+            entity_lines="\n".join(entity_lines),
         )
         resp = "Decisions:\n" + "\n".join(decision_lines)
 

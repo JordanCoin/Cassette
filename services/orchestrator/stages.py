@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+from libs.core.config import get_str
 from libs.core.contracts import DatasetSnapshot
 from libs.core.ports import WebFetch, WebSearch
 from libs.core.training_executor import execute_training
@@ -157,7 +158,7 @@ class PlanTrainingStage:
         if not snapshot_data:
             raise ValueError("plan_training requires 'snapshot' in context")
 
-        data_dir = context.get("data_dir", "data/gateway")
+        data_dir = context.get("data_dir", get_str("data_dir"))
 
         snapshot = DatasetSnapshot.model_validate(snapshot_data)
 

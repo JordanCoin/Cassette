@@ -1,0 +1,19 @@
+name: full
+description: Validate a full entity list in one pass
+version: 1
+
+template: |
+  Review this entity list extracted from a government document.
+
+  TASKS:
+  1. Remove junk entries (boilerplate, job titles, sentence fragments)
+  2. Flag OCR errors in names
+  3. Mark low-quality entries with confidence 0.1
+  4. Keep all legitimate people, organizations, locations, dates, money amounts
+
+  ENTITIES:
+  {entity_list}
+
+  Return JSON: {{"keep": [{{"raw_text": "...", "confidence": 0.95, "corrected": "..."}}], "remove": ["junk entry 1", "junk entry 2"]}}
+
+response_format: json

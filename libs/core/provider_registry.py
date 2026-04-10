@@ -6,13 +6,13 @@ from collections.abc import Callable
 
 from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
 from libs.adapters.mock_provider import MockProvider
+from libs.core.config import get_float, get_str
 from libs.core.ports import ModelProvider
-from libs.core.settings import get_llama_cpp_url, get_model_name, get_provider_timeout
 
 _PROVIDERS: dict[str, Callable[[], ModelProvider]] = {
     "mock": MockProvider,
     "llama_cpp_http": lambda: LlamaCppHttpProvider(
-        get_llama_cpp_url(), timeout=get_provider_timeout(), model=get_model_name()
+        get_str("provider_url"), timeout=get_float("provider_timeout"), model=get_str("model")
     ),
 }
 

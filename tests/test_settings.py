@@ -1,4 +1,4 @@
-"""Tests for settings and provider resolution."""
+"""Tests for the config system."""
 
 from __future__ import annotations
 
@@ -6,28 +6,35 @@ import os
 
 import pytest
 
+from libs.core.config import reload
 from libs.core.provider_registry import resolve_provider
-from libs.core.settings import get_provider_name
 
 
-class TestGetProviderName:
-    def test_defaults_to_mock(self) -> None:
-        env = os.environ.copy()
-        os.environ.pop("CASSETTE_PROVIDER", None)
-        try:
-            assert get_provider_name() == "mock"
-        finally:
-            os.environ.clear()
-            os.environ.update(env)
+class TestConfig:
+    def test_reads_yaml_defaults(self) -> None:
+        from libs.core.config import get_str
 
-    def test_reads_env_var(self) -> None:
+        reload()
+        assert get_str("provider") == "mock"
+
+    def test_env_var_overrides_yaml(self) -> None:
+        from libs.core.config import get_str
+
         env = os.environ.copy()
         os.environ["CASSETTE_PROVIDER"] = "custom"
         try:
-            assert get_provider_name() == "custom"
+            reload()
+            assert get_str("provider") == "custom"
         finally:
             os.environ.clear()
             os.environ.update(env)
+            reload()
+
+    def test_missing_key_raises(self) -> None:
+        from libs.core.config import get
+
+        with pytest.raises(KeyError, match="Missing config key"):
+            get("nonexistent_key_xyz")
 
 
 class TestResolveProvider:

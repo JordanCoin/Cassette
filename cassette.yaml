@@ -1,0 +1,75 @@
+# Cassette configuration
+# All values can be overridden by environment variables prefixed with CASSETTE_
+# e.g. data_dir -> CASSETTE_DATA_DIR
+
+# Core paths
+data_dir: data/gateway
+prompts_dir: prompts
+
+# Provider
+provider: mock
+model: default
+provider_url: http://localhost:8080
+provider_timeout: 60
+search_url: http://localhost:8888
+
+# Storage file names
+traces_file: traces.jsonl
+events_file: events.jsonl
+tasks_file: tasks.jsonl
+dataset_file: dataset.jsonl
+dataset_labeled_file: dataset_labeled.jsonl
+dataset_promoted_file: dataset_promoted.jsonl
+manifest_file: manifest.jsonl
+
+# Recording
+max_content_len: 2000
+max_fetch_content_len: 5000
+fetch_timeout: 15
+search_timeout: 15
+health_probe_timeout: 5
+
+# Extraction
+split_strategy: full
+hash_prefix_len: 16
+
+# Evaluation
+min_response_len: 5
+min_message_content_len: 2
+accept_threshold: 0.7
+review_threshold: 0.3
+short_response_penalty: 0.3
+no_user_message_penalty: 0.3
+error_marker_penalty: 0.8
+golden_mismatch_penalty: 0.5
+judge_blend_weight: 0.5
+judge_default_score: 3
+
+# Training
+min_records_for_training: 10
+qlora_threshold: 100
+tokens_per_record: 200
+train_epochs: 3
+train_batch_size: 2
+train_learning_rate: 0.0002
+train_max_seq_length: 2048
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Comparison
+compare_max_records: 50
+compare_improve_delta: 0.05
+compare_regress_delta: 0.05
+compare_promote_delta: 0.1
+compare_max_regress_ratio: 0.1
+compare_preview_len: 100
+
+# Pipeline
+trace_limit: 200
+max_debug_limit: 200
+log_tail_lines: 20
+training_timeout: 3600
+
+# Web tooling
+gather_max_results: 3

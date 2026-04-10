@@ -12,12 +12,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from libs.adapters.jsonl_store import JsonlStore
+from libs.core.config import get_str
 from libs.core.contracts import Event, Task, TaskStatus
 from libs.core.metrics import registry as metrics
 from libs.core.ports import ModelProvider
 from libs.core.provider_registry import resolve_provider
 from libs.core.recorder import record_chat, record_chat_error, record_request
-from libs.core.settings import get_provider_name
 from services.gateway.models import (
     ChatChoice,
     ChatCompletionRequest,
@@ -27,11 +27,11 @@ from services.gateway.models import (
     UpdateTaskRequest,
 )
 
-DATA_DIR = Path("data/gateway")
+DATA_DIR = Path(get_str("data_dir"))
 
 app = FastAPI(title="Cassette Gateway", version="0.1.0")
 store = JsonlStore(DATA_DIR)
-provider: ModelProvider = resolve_provider(get_provider_name())
+provider: ModelProvider = resolve_provider(get_str("provider"))
 
 
 def _backend_url() -> str:
@@ -363,7 +363,7 @@ async def orchestrator_run(
 ) -> dict[str, Any]:
     from libs.adapters.http_fetch import HttpFetchAdapter
     from libs.adapters.http_search import HttpSearchAdapter
-    from libs.core.settings import get_search_url
+    from libs.core.config import get_str
     from services.orchestrator.runner import run_stage
     from services.orchestrator.stages import (
         EchoStage,
@@ -385,7 +385,7 @@ async def orchestrator_run(
         stage = EchoStage()
     elif stage_name == "gather_sources":
         stage = GatherSourcesStage(  # type: ignore[assignment]
-            search=HttpSearchAdapter(get_search_url()),
+            search=HttpSearchAdapter(get_str("search_url")),
             fetch=HttpFetchAdapter(),
         )
     elif stage_name == "propose_training":
@@ -432,7 +432,7 @@ async def compare_models_endpoint(
 ) -> dict[str, Any]:
     from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
     from libs.core.comparator import compare_models
-    from libs.core.settings import get_llama_cpp_url, get_provider_timeout
+    from libs.core.config import get_float, get_str
     from libs.core.snapshots import list_snapshots
 
     base_model = request.get("base_model")
@@ -445,8 +445,8 @@ async def compare_models_endpoint(
             content={"error": "base_model and adapter_model are required"},
         )
 
-    url = get_llama_cpp_url()
-    timeout = get_provider_timeout()
+    url = get_str("provider_url")
+    timeout = get_float("provider_timeout")
 
     base_provider = LlamaCppHttpProvider(url, timeout=timeout, model=base_model)
     adapter_provider = LlamaCppHttpProvider(url, timeout=timeout, model=adapter_model)

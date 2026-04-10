@@ -21,7 +21,7 @@ import pytest
 
 from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
 from libs.cli import main as cli_main
-from libs.core.settings import get_llama_cpp_url
+from libs.core.config import get_str
 
 _SKIP = not os.environ.get("CASSETTE_INTEGRATION")
 _REASON = "Set CASSETTE_INTEGRATION=1 and start a local model server to run"
@@ -30,12 +30,12 @@ _REASON = "Set CASSETTE_INTEGRATION=1 and start a local model server to run"
 @pytest.mark.skipif(_SKIP, reason=_REASON)
 class TestRealProviderHealth:
     def test_health_check_reachable(self) -> None:
-        provider = LlamaCppHttpProvider(get_llama_cpp_url())
+        provider = LlamaCppHttpProvider(get_str("provider_url"))
         result = provider.health_check()
         assert result["reachable"] is True, f"Provider not reachable: {result}"
 
     def test_health_check_returns_url(self) -> None:
-        provider = LlamaCppHttpProvider(get_llama_cpp_url())
+        provider = LlamaCppHttpProvider(get_str("provider_url"))
         result = provider.health_check()
         assert "url" in result
 
@@ -43,13 +43,13 @@ class TestRealProviderHealth:
 @pytest.mark.skipif(_SKIP, reason=_REASON)
 class TestRealChatCompletion:
     def test_single_completion(self) -> None:
-        provider = LlamaCppHttpProvider(get_llama_cpp_url(), timeout=120.0)
+        provider = LlamaCppHttpProvider(get_str("provider_url"), timeout=120.0)
         result = provider.complete([{"role": "user", "content": "Say hello in one word."}])
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_multi_turn(self) -> None:
-        provider = LlamaCppHttpProvider(get_llama_cpp_url(), timeout=120.0)
+        provider = LlamaCppHttpProvider(get_str("provider_url"), timeout=120.0)
         result = provider.complete([
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is 2+2? Answer with just the number."},

@@ -9,16 +9,16 @@ from pathlib import Path
 
 from libs.adapters.dataset_writer import write_dataset
 from libs.adapters.jsonl_store import JsonlStore
+from libs.core.config import get_float, get_str
 from libs.core.evaluator import evaluate_records
 from libs.core.extractor import extract_records
 from libs.core.pipeline import run_full_loop
 from libs.core.promoter import apply_eval_decisions, select_promoted
 from libs.core.provider_registry import resolve_provider
-from libs.core.settings import get_provider_name, get_search_url
 from libs.core.snapshots import create_snapshot, list_snapshots
 from libs.core.training_plan import build_proposal
 
-DEFAULT_DATA_DIR = Path("data/gateway")
+DEFAULT_DATA_DIR = Path(get_str("data_dir"))
 
 
 def _get_store(data_dir: Path) -> JsonlStore:
@@ -369,7 +369,6 @@ def cmd_train(args: argparse.Namespace) -> int:
 def cmd_compare(args: argparse.Namespace) -> int:
     from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
     from libs.core.comparator import compare_models
-    from libs.core.settings import get_llama_cpp_url, get_provider_timeout
 
     data_dir = Path(args.data_dir)
     snapshots_dir = data_dir / "snapshots"
@@ -386,8 +385,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
     else:
         snapshot_path = snapshots_dir / f"{snapshots[-1].snapshot_id}.jsonl"
 
-    url = get_llama_cpp_url()
-    timeout = get_provider_timeout()
+    url = get_str("provider_url")
+    timeout = get_float("provider_timeout")
 
     base = LlamaCppHttpProvider(url, timeout=timeout, model=args.base)
     adapter = LlamaCppHttpProvider(url, timeout=timeout, model=args.adapter)
@@ -475,7 +474,7 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     if getattr(args, "use_judge", False):
         from libs.core.judge import judge_records
 
-        prov = resolve_provider(get_provider_name())
+        prov = resolve_provider(get_str("provider"))
         print("  Running LLM-as-judge evaluation...", file=sys.stderr)
         judge_results = judge_records(records, prov)
 
@@ -504,7 +503,7 @@ def cmd_health(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     store = _get_store(data_dir)
 
-    provider_name = get_provider_name()
+    provider_name = get_str("provider")
     try:
         prov = resolve_provider(provider_name)
     except ValueError as exc:
@@ -539,7 +538,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     checks.append({"check": "data_directory", "status": "ok", "path": str(data_dir)})
 
     # 2. Provider
-    provider_name = get_provider_name()
+    provider_name = get_str("provider")
     try:
         prov = resolve_provider(provider_name)
         checks.append({"check": "provider_configured", "status": "ok", "provider": provider_name})
@@ -576,7 +575,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             })
 
     # 4. Search endpoint
-    search_url = get_search_url()
+    search_url = get_str("search_url")
     try:
         import httpx
 

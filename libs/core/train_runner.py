@@ -1,4 +1,4 @@
-"""Training runner — executes LoRA/SFT training using TRL programmatically."""
+"""Training runner — executes LoRA/SFT training using TRL."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ def prepare_dataset(snapshot_path: Path) -> list[dict[str, list[dict[str, str]]]
                 "role": msg.get("role", "user"),
                 "content": str(msg.get("content", "")),
             })
-        # Add the response as assistant message
         if data.get("response"):
             messages.append({
                 "role": "assistant",
@@ -33,12 +32,8 @@ def run_training(
     dataset_path: Path,
     output_dir: Path,
     method: str = "lora",
-    epochs: int = 3,
-    batch_size: int = 2,
-    learning_rate: float = 2e-4,
-    max_seq_length: int = 2048,
 ) -> dict[str, object]:
-    """Run LoRA SFT training. Returns result dict."""
+    """Run LoRA SFT training."""
     try:
         from datasets import Dataset
         from peft import LoraConfig
@@ -53,38 +48,42 @@ def run_training(
 
     import time
 
+    from libs.core.config import get_float, get_int
+
+    epochs = get_int("train_epochs")
+    batch_size = get_int("train_batch_size")
+    learning_rate = get_float("train_learning_rate")
+    max_seq_length = get_int("train_max_seq_length")
+    lora_r = get_int("lora_r")
+    lora_alpha = get_int("lora_alpha")
+    lora_dropout = get_float("lora_dropout")
+
     start = time.monotonic()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Prepare dataset
     chat_data = prepare_dataset(dataset_path)
     if not chat_data:
         return {"success": False, "error": "Dataset is empty after conversion"}
 
     dataset = Dataset.from_list(chat_data)
 
-    # Load tokenizer and model
     print(f"  Loading model: {model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        device_map="auto",
-        torch_dtype="auto",
+        model_name, device_map="auto", torch_dtype="auto",
     )
 
-    # LoRA config
     lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        lora_dropout=0.05,
+        r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
         target_modules="all-linear",
         task_type="CAUSAL_LM",
     )
 
-    # Training config
     training_args = SFTConfig(
         output_dir=str(output_dir),
         num_train_epochs=epochs,
@@ -96,7 +95,6 @@ def run_training(
         report_to="none",
     )
 
-    # Train
     print(f"  Training {len(chat_data)} examples, {epochs} epochs...")
     trainer = SFTTrainer(
         model=model,

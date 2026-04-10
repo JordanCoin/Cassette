@@ -2,44 +2,41 @@
 
 from __future__ import annotations
 
+from libs.core.config import get_int, get_str
 from libs.core.contracts import TrainingProposal
-from libs.core.settings import get_model_name
-
-TOKENS_PER_RECORD = 200
-MIN_RECORDS_FOR_TRAINING = 10
-
-
-def _resolve_base_model() -> str:
-    """Use the configured model from CASSETTE_MODEL."""
-    return get_model_name()
 
 
 def select_method(record_count: int) -> str:
-    if record_count < MIN_RECORDS_FOR_TRAINING:
+    min_records = get_int("min_records_for_training")
+    qlora_threshold = get_int("qlora_threshold")
+    if record_count < min_records:
         return "sft"
-    if record_count < 100:
+    if record_count < qlora_threshold:
         return "lora"
     return "qlora"
 
 
 def training_notes(record_count: int) -> str:
-    if record_count < MIN_RECORDS_FOR_TRAINING:
+    min_records = get_int("min_records_for_training")
+    qlora_threshold = get_int("qlora_threshold")
+    if record_count < min_records:
         return (
             f"Only {record_count} records — below minimum "
-            f"({MIN_RECORDS_FOR_TRAINING}). Training not recommended yet."
+            f"({min_records}). Training not recommended yet."
         )
-    if record_count < 100:
+    if record_count < qlora_threshold:
         return "Small dataset. LoRA recommended for parameter efficiency."
     return "Sufficient data for QLoRA fine-tuning."
 
 
 def build_proposal(snapshot_id: str, record_count: int) -> TrainingProposal:
     """Build a training proposal from snapshot metadata."""
+    tokens_per_record = get_int("tokens_per_record")
     return TrainingProposal(
         snapshot_id=snapshot_id,
         record_count=record_count,
-        base_model=_resolve_base_model(),
+        base_model=get_str("model"),
         method=select_method(record_count),
-        estimated_tokens=record_count * TOKENS_PER_RECORD,
+        estimated_tokens=record_count * tokens_per_record,
         notes=training_notes(record_count),
     )

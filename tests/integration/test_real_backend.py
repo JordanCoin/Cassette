@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from libs.cli import main as cli_main
+from libs.core.config import get_str
 from libs.core.provider_registry import resolve_provider
-from libs.core.settings import get_provider_name
 
 from .conftest import SKIP_INTEGRATION, SKIP_REASON
 
@@ -32,7 +32,7 @@ class TestHardwareDetection:
 @skip
 class TestProviderReachable:
     def test_health_check(self) -> None:
-        provider = resolve_provider(get_provider_name())
+        provider = resolve_provider(get_str("provider"))
         health_fn = getattr(provider, "health_check", None)
         if health_fn:
             result = health_fn()
@@ -45,7 +45,7 @@ class TestProviderReachable:
 @skip
 class TestRealCompletion:
     def test_simple_completion(self) -> None:
-        provider = resolve_provider(get_provider_name())
+        provider = resolve_provider(get_str("provider"))
         result = provider.complete([
             {"role": "user", "content": "What is 2+2? Answer with just the number."},
         ])
@@ -53,7 +53,7 @@ class TestRealCompletion:
         print(f"\n  Response: {result[:100]}")
 
     def test_system_prompt(self) -> None:
-        provider = resolve_provider(get_provider_name())
+        provider = resolve_provider(get_str("provider"))
         result = provider.complete([
             {"role": "system", "content": "You are a helpful assistant. Be concise."},
             {"role": "user", "content": "What is Python?"},
@@ -212,7 +212,7 @@ class TestSurfaceSpecific:
         print(f"\n  Detected surface: {surface}")
 
         # Run a completion
-        provider = resolve_provider(get_provider_name())
+        provider = resolve_provider(get_str("provider"))
         result = provider.complete([
             {"role": "user", "content": "Say hello in 5 words or less."},
         ])

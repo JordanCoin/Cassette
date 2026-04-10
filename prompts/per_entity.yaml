@@ -1,0 +1,25 @@
+name: per_entity
+description: Classify a single entity as keep or remove
+version: 1
+
+template: |
+  Classify this entity extracted from a government document.
+
+  Type: {entity_type}
+  Text: "{entity_text}"
+
+  REMOVE if:
+  - Job title or role (not a specific person's name)
+  - Generic reference (not a specific named thing)
+  - Fragment or abbreviation without context
+  - Document boilerplate or section header
+
+  KEEP if:
+  - Specific person's name (first and/or last name)
+  - Specific named organization
+  - Specific date, location, or dollar amount
+  - Document or case number
+
+  Answer ONLY: keep or remove
+
+response_format: "{decision}"
