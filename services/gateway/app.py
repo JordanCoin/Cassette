@@ -349,12 +349,13 @@ async def orchestrator_run(
     from services.orchestrator.stages import (
         EchoStage,
         GatherSourcesStage,
+        PlanTrainingStage,
         ProposeTrainingStage,
     )
 
     stage_name = request.get("stage", "echo")
     context = request.get("context", {})
-    available = "echo, gather_sources, propose_training"
+    available = "echo, gather_sources, propose_training, plan_training"
 
     if stage_name == "echo":
         stage = EchoStage()
@@ -365,6 +366,8 @@ async def orchestrator_run(
         )
     elif stage_name == "propose_training":
         stage = ProposeTrainingStage()  # type: ignore[assignment]
+    elif stage_name == "plan_training":
+        stage = PlanTrainingStage()  # type: ignore[assignment]
     else:
         return JSONResponse(  # type: ignore[return-value]
             status_code=422,

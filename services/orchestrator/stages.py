@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
 
 from libs.core.contracts import DatasetSnapshot
 from libs.core.ports import WebFetch, WebSearch
 from libs.core.training_plan import build_proposal
+from libs.core.training_planner import build_training_plan
 
 # Type alias for the emitter callback injected by the runner.
 EmitFn = Callable[[str, dict[str, Any] | None], None]
@@ -137,3 +139,35 @@ class ProposeTrainingStage:
         })
 
         return proposal.model_dump(mode="json")
+
+
+class PlanTrainingStage:
+    """Validates inputs and builds a concrete training plan."""
+
+    @property
+    def name(self) -> str:
+        return "plan_training"
+
+    def run(self, context: dict[str, Any]) -> dict[str, Any]:
+        emit: EmitFn = context.get("_emit", _noop_emit)
+
+        snapshot_data = context.get("snapshot")
+        if not snapshot_data:
+            raise ValueError("plan_training requires 'snapshot' in context")
+
+        data_dir = context.get("data_dir", "data/gateway")
+
+        snapshot = DatasetSnapshot.model_validate(snapshot_data)
+
+        emit("training.plan.started", {"snapshot_id": snapshot.snapshot_id})
+
+        plan = build_training_plan(snapshot, Path(data_dir))
+
+        emit("training.plan.completed", {
+            "snapshot_id": snapshot.snapshot_id,
+            "method": plan.method,
+            "dataset_path": plan.dataset_path,
+            "output_dir": plan.output_dir,
+        })
+
+        return plan.model_dump(mode="json")

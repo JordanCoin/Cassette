@@ -98,3 +98,16 @@ class TrainingProposal(BaseModel):
     method: str = Field(description="sft, lora, qlora, dpo")
     estimated_tokens: int
     notes: str = ""
+
+
+class TrainingPlan(BaseModel):
+    """Concrete, validated training plan ready for execution."""
+
+    snapshot_id: str
+    dataset_path: str
+    base_model: str
+    method: str
+    estimated_tokens: int
+    output_dir: str
+    command: str = Field(description="Runnable training command")
+    notes: str = ""

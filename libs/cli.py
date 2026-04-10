@@ -180,6 +180,55 @@ def cmd_propose_training(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan_training(args: argparse.Namespace) -> int:
+    from libs.core.training_planner import build_training_plan
+
+    data_dir = Path(args.data_dir)
+    snapshots_dir = data_dir / "snapshots"
+    snapshots = list_snapshots(snapshots_dir)
+
+    if not snapshots:
+        return _error(
+            "No snapshots available.\n"
+            "  Run 'cassette evaluate-dataset' then 'cassette snapshot-dataset' first."
+        )
+
+    if args.snapshot_id:
+        match = [s for s in snapshots if s.snapshot_id == args.snapshot_id]
+        if not match:
+            available = ", ".join(s.snapshot_id for s in snapshots[-3:])
+            return _error(f"Snapshot not found: {args.snapshot_id}\n  Available: {available}")
+        snapshot = match[0]
+    else:
+        snapshot = snapshots[-1]
+
+    try:
+        plan = build_training_plan(snapshot, data_dir)
+    except ValueError as exc:
+        return _error(str(exc))
+
+    if args.json:
+        _print_json(plan.model_dump(mode="json"))
+    else:
+        print()
+        print("  Training Plan")
+        print("  =============")
+        print(f"  Snapshot:  {plan.snapshot_id}")
+        print(f"  Dataset:   {plan.dataset_path}")
+        print(f"  Model:     {plan.base_model}")
+        print(f"  Method:    {plan.method}")
+        print(f"  Tokens:    ~{plan.estimated_tokens}")
+        print(f"  Output:    {plan.output_dir}")
+        print(f"  Notes:     {plan.notes}")
+        print()
+        print("  Command:")
+        for line in plan.command.split("\n"):
+            print(f"    {line}")
+        print()
+
+    return 0
+
+
 def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
     data_dir = Path(args.data_dir)
@@ -433,6 +482,10 @@ def build_parser() -> argparse.ArgumentParser:
     propose = sub.add_parser("propose-training", help="Generate a training proposal")
     propose.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
 
+    plan_train = sub.add_parser("plan-training", help="Build a concrete training plan")
+    plan_train.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
+    plan_train.add_argument("--json", action="store_true", help="Output raw JSON")
+
     sub.add_parser("health", help="Quick provider and system check")
     sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
     sub.add_parser("demo", help="Run a sample workflow showing the full pipeline")
@@ -447,6 +500,7 @@ _COMMANDS = {
     "snapshot-dataset": cmd_snapshot_dataset,
     "list-snapshots": cmd_list_snapshots,
     "propose-training": cmd_propose_training,
+    "plan-training": cmd_plan_training,
     "health": cmd_health,
     "doctor": cmd_doctor,
     "demo": cmd_demo,
