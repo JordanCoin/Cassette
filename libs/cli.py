@@ -358,6 +358,70 @@ def cmd_train(args: argparse.Namespace) -> int:
     return 0 if result.success else 1
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
+    from libs.core.comparator import compare_models
+    from libs.core.settings import get_llama_cpp_url, get_provider_timeout
+
+    data_dir = Path(args.data_dir)
+    snapshots_dir = data_dir / "snapshots"
+    snapshots = list_snapshots(snapshots_dir)
+
+    if not snapshots:
+        return _error("No snapshots found. Run the loop first.")
+
+    if args.snapshot_id:
+        match = [s for s in snapshots if s.snapshot_id == args.snapshot_id]
+        if not match:
+            return _error(f"Snapshot not found: {args.snapshot_id}")
+        snapshot_path = snapshots_dir / f"{args.snapshot_id}.jsonl"
+    else:
+        snapshot_path = snapshots_dir / f"{snapshots[-1].snapshot_id}.jsonl"
+
+    url = get_llama_cpp_url()
+    timeout = get_provider_timeout()
+
+    base = LlamaCppHttpProvider(url, timeout=timeout, model=args.base)
+    adapter = LlamaCppHttpProvider(url, timeout=timeout, model=args.adapter)
+
+    print(f"\n  Comparing: {args.base} vs {args.adapter}")
+    print(f"  Snapshot:  {snapshot_path.stem}")
+    print("  Running prompts through both models...\n")
+
+    try:
+        result = compare_models(base, adapter, snapshot_path)
+    except (FileNotFoundError, ValueError) as exc:
+        return _error(str(exc))
+
+    if args.json:
+        _print_json(result.model_dump(mode="json"))
+    else:
+        print(f"  Records compared: {result.records_compared}")
+        print(f"  Base avg score:    {result.base_avg_score:.3f}")
+        print(f"  Adapter avg score: {result.adapter_avg_score:.3f}")
+        print()
+        print(f"  Improved:  {result.improved}")
+        print(f"  Regressed: {result.regressed}")
+        print(f"  Unchanged: {result.unchanged}")
+        print()
+        print(f"  Recommendation: {result.recommendation.upper()}")
+        print()
+
+        if result.details:
+            print("  Details:")
+            for d in result.details[:10]:
+                marker = {"improved": "+", "regressed": "-", "unchanged": "="}[d["change"]]
+                print(
+                    f"    [{marker}] {d['content_hash'][:8]}  "
+                    f"base={d['base_score']:.2f}  adapter={d['adapter_score']:.2f}"
+                )
+            if len(result.details) > 10:
+                print(f"    ... and {len(result.details) - 10} more")
+            print()
+
+    return 0
+
+
 def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
     data_dir = Path(args.data_dir)
@@ -634,6 +698,12 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--timeout", type=int, default=3600, help="Training timeout in seconds")
     train.add_argument("--json", action="store_true", help="Output raw JSON result")
 
+    compare = sub.add_parser("compare", help="Compare base model vs adapter on a snapshot")
+    compare.add_argument("--base", required=True, help="Base model name (e.g. llama3.2:3b)")
+    compare.add_argument("--adapter", required=True, help="Adapter model name (e.g. foia-v1)")
+    compare.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
+    compare.add_argument("--json", action="store_true", help="Output raw JSON")
+
     sub.add_parser("health", help="Quick provider and system check")
     sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
     sub.add_parser("demo", help="Run a sample workflow showing the full pipeline")
@@ -651,6 +721,7 @@ _COMMANDS = {
     "plan-training": cmd_plan_training,
     "validate-training": cmd_validate_training,
     "train": cmd_train,
+    "compare": cmd_compare,
     "health": cmd_health,
     "doctor": cmd_doctor,
     "demo": cmd_demo,

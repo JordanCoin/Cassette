@@ -147,3 +147,19 @@ class JudgeResult(BaseModel):
     judge_score: int = Field(ge=1, le=5, description="1-5 quality score")
     reasoning: str = ""
     provider: str = ""
+
+
+class ComparisonResult(BaseModel):
+    """Result of comparing base model vs adapter on the same prompts."""
+
+    snapshot_id: str
+    base_model: str
+    adapter_model: str
+    records_compared: int
+    base_avg_score: float
+    adapter_avg_score: float
+    improved: int
+    regressed: int
+    unchanged: int
+    recommendation: str = Field(description="promote, reject, needs_review")
+    details: list[dict[str, Any]] = Field(default_factory=list)

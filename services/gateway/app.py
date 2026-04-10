@@ -418,3 +418,55 @@ async def loop_run(
     from libs.core.pipeline import run_full_loop
 
     return run_full_loop(store, store._dir, trace_limit=limit)
+
+
+# -- Model comparison --
+
+
+@app.post("/compare")
+async def compare_models_endpoint(
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    from libs.adapters.llama_cpp_http_provider import LlamaCppHttpProvider
+    from libs.core.comparator import compare_models
+    from libs.core.settings import get_llama_cpp_url, get_provider_timeout
+    from libs.core.snapshots import list_snapshots
+
+    base_model = request.get("base_model")
+    adapter_model = request.get("adapter_model")
+    snapshot_id = request.get("snapshot_id")
+
+    if not base_model or not adapter_model:
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=422,
+            content={"error": "base_model and adapter_model are required"},
+        )
+
+    url = get_llama_cpp_url()
+    timeout = get_provider_timeout()
+
+    base_provider = LlamaCppHttpProvider(url, timeout=timeout, model=base_model)
+    adapter_provider = LlamaCppHttpProvider(url, timeout=timeout, model=adapter_model)
+
+    # Find snapshot
+    snapshots_dir = store._dir / "snapshots"
+    if snapshot_id:
+        snapshot_path = snapshots_dir / f"{snapshot_id}.jsonl"
+    else:
+        snaps = list_snapshots(snapshots_dir)
+        if not snaps:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=404,
+                content={"error": "No snapshots found"},
+            )
+        snapshot_path = snapshots_dir / f"{snaps[-1].snapshot_id}.jsonl"
+
+    try:
+        result = compare_models(base_provider, adapter_provider, snapshot_path)
+    except (FileNotFoundError, ValueError) as exc:
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=404,
+            content={"error": str(exc)},
+        )
+
+    return result.model_dump(mode="json")
