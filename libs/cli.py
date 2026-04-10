@@ -690,6 +690,69 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0 if result.get("status") == "completed" else 1
 
 
+def cmd_export_model(args: argparse.Namespace) -> int:
+    from libs.core.model_exporter import export_model
+
+    data_dir = Path(args.data_dir)
+
+    # Find the adapter
+    models_dir = data_dir / "models"
+    if not models_dir.exists():
+        return _error("No trained models found. Run 'cassette train' first.")
+
+    adapter_dirs = sorted(models_dir.iterdir())
+    adapter_dirs = [d for d in adapter_dirs if d.is_dir() and (d / "adapter_config.json").exists()]
+
+    if not adapter_dirs:
+        return _error("No adapter found in models directory.")
+
+    adapter_path = adapter_dirs[-1]  # latest
+
+    # Read base model from adapter config
+    import json
+
+    config = json.loads((adapter_path / "adapter_config.json").read_text())
+    base_model = config.get("base_model_name_or_path", "")
+    if not base_model:
+        return _error("Cannot determine base model from adapter config.")
+
+    model_name = args.name or f"cassette-{adapter_path.name}"
+    output_dir = data_dir / "exported" / model_name
+
+    print(f"\n  Exporting adapter: {adapter_path.name}")
+    print(f"  Base model: {base_model}")
+    print(f"  Output name: {model_name}")
+    print()
+
+    result = export_model(
+        base_model=base_model,
+        adapter_path=adapter_path,
+        output_dir=output_dir,
+        model_name=model_name,
+        skip_gguf=args.skip_gguf,
+        skip_ollama=args.skip_ollama,
+    )
+
+    print()
+    status = result.get("status", "unknown")
+    if status == "registered":
+        print(f"  Model registered with ollama as: {result['ollama_model']}")
+        print(f"  Use it with: ollama run {result['ollama_model']}")
+        print(f"  Or in OpenFOIA config: \"model\": \"{result['ollama_model']}\"")
+    elif status == "gguf_ready":
+        print(f"  GGUF file: {result.get('gguf_path', 'n/a')}")
+        print("  Register manually: ollama create <name> -f Modelfile")
+    elif status == "merged_only":
+        print(f"  Merged model: {result.get('merged_path', 'n/a')}")
+        print("  GGUF conversion skipped. Convert manually if needed.")
+
+    if result.get("note"):
+        print(f"  Note: {result['note']}")
+    print()
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cassette", description="Cassette CLI")
     parser.add_argument(
@@ -736,6 +799,11 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
     compare.add_argument("--json", action="store_true", help="Output raw JSON")
 
+    export = sub.add_parser("export-model", help="Merge adapter + register with ollama")
+    export.add_argument("--name", default=None, help="Model name (default: auto from adapter)")
+    export.add_argument("--skip-gguf", action="store_true", help="Skip GGUF conversion")
+    export.add_argument("--skip-ollama", action="store_true", help="Skip ollama registration")
+
     sub.add_parser("health", help="Quick provider and system check")
     sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
     sub.add_parser("demo", help="Run a sample workflow showing the full pipeline")
@@ -753,6 +821,7 @@ _COMMANDS = {
     "plan-training": cmd_plan_training,
     "validate-training": cmd_validate_training,
     "train": cmd_train,
+    "export-model": cmd_export_model,
     "compare": cmd_compare,
     "health": cmd_health,
     "doctor": cmd_doctor,
