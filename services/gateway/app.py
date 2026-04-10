@@ -222,6 +222,30 @@ async def promote_dataset(
     }
 
 
+@app.post("/debug/snapshot-dataset")
+async def snapshot_dataset() -> dict[str, Any]:
+    from libs.core.snapshots import create_snapshot
+
+    promoted_path = store._dir / "dataset_promoted.jsonl"
+    snapshots_dir = store._dir / "snapshots"
+    try:
+        snapshot = create_snapshot(promoted_path, snapshots_dir)
+    except FileNotFoundError as exc:
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=404, content={"error": str(exc)}
+        )
+    return snapshot.model_dump(mode="json")
+
+
+@app.get("/debug/snapshots")
+async def get_snapshots() -> list[dict[str, Any]]:
+    from libs.core.snapshots import list_snapshots
+
+    snapshots_dir = store._dir / "snapshots"
+    snapshots = list_snapshots(snapshots_dir)
+    return [s.model_dump(mode="json") for s in snapshots]
+
+
 # -- Task ledger endpoints --
 
 
@@ -304,11 +328,15 @@ async def orchestrator_run(
     from libs.adapters.http_search import HttpSearchAdapter
     from libs.core.settings import get_search_url
     from services.orchestrator.runner import run_stage
-    from services.orchestrator.stages import EchoStage, GatherSourcesStage
+    from services.orchestrator.stages import (
+        EchoStage,
+        GatherSourcesStage,
+        ProposeTrainingStage,
+    )
 
     stage_name = request.get("stage", "echo")
     context = request.get("context", {})
-    available = "echo, gather_sources"
+    available = "echo, gather_sources, propose_training"
 
     if stage_name == "echo":
         stage = EchoStage()
@@ -317,6 +345,8 @@ async def orchestrator_run(
             search=HttpSearchAdapter(get_search_url()),
             fetch=HttpFetchAdapter(),
         )
+    elif stage_name == "propose_training":
+        stage = ProposeTrainingStage()  # type: ignore[assignment]
     else:
         return JSONResponse(  # type: ignore[return-value]
             status_code=422,

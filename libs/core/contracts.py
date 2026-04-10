@@ -77,3 +77,24 @@ class EvalResult(BaseModel):
     decision: str = Field(description="accepted, rejected, needs_review")
     flags: list[str] = Field(default_factory=list, description="Reasons for the decision")
     score: float = Field(default=1.0, description="0.0–1.0 quality score")
+
+
+class DatasetSnapshot(BaseModel):
+    """Metadata for a versioned dataset snapshot."""
+
+    snapshot_id: str
+    created_at: datetime
+    content_hash: str
+    record_count: int
+    source_path: str
+
+
+class TrainingProposal(BaseModel):
+    """Structured plan for a potential training run."""
+
+    snapshot_id: str
+    record_count: int
+    base_model: str
+    method: str = Field(description="sft, lora, qlora, dpo")
+    estimated_tokens: int
+    notes: str = ""

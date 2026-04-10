@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from libs.core.contracts import DatasetSnapshot, TrainingProposal
 from libs.core.ports import WebFetch, WebSearch
 
 # Type alias for the emitter callback injected by the runner.
@@ -106,3 +107,58 @@ class GatherSourcesStage:
             "sources": sources,
             "errors": errors,
         }
+
+
+# Rough token estimate: ~200 tokens per record (messages + response)
+_TOKENS_PER_RECORD = 200
+_DEFAULT_BASE_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+_MIN_RECORDS_FOR_TRAINING = 10
+
+
+class ProposeTrainingStage:
+    """Generates a training proposal from a dataset snapshot."""
+
+    @property
+    def name(self) -> str:
+        return "propose_training"
+
+    def run(self, context: dict[str, Any]) -> dict[str, Any]:
+        emit: EmitFn = context.get("_emit", _noop_emit)
+
+        snapshot_data = context.get("snapshot")
+        if not snapshot_data:
+            raise ValueError("propose_training requires 'snapshot' in context")
+
+        snapshot = DatasetSnapshot.model_validate(snapshot_data)
+
+        emit("proposal.started", {"snapshot_id": snapshot.snapshot_id})
+
+        if snapshot.record_count < _MIN_RECORDS_FOR_TRAINING:
+            method = "sft"
+            notes = (
+                f"Only {snapshot.record_count} records — below minimum "
+                f"({_MIN_RECORDS_FOR_TRAINING}). Training not recommended yet."
+            )
+        elif snapshot.record_count < 100:
+            method = "lora"
+            notes = "Small dataset. LoRA recommended for parameter efficiency."
+        else:
+            method = "qlora"
+            notes = "Sufficient data for QLoRA fine-tuning."
+
+        proposal = TrainingProposal(
+            snapshot_id=snapshot.snapshot_id,
+            record_count=snapshot.record_count,
+            base_model=_DEFAULT_BASE_MODEL,
+            method=method,
+            estimated_tokens=snapshot.record_count * _TOKENS_PER_RECORD,
+            notes=notes,
+        )
+
+        emit("proposal.completed", {
+            "snapshot_id": snapshot.snapshot_id,
+            "method": method,
+            "estimated_tokens": proposal.estimated_tokens,
+        })
+
+        return proposal.model_dump(mode="json")
