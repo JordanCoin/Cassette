@@ -1,136 +1,122 @@
 # Cassette
 
-Cassette records intelligence as it happens—and improves from it.
+A self-improving system that records how AI models behave, evaluates their output, and trains them to be better — all locally, all yours.
 
 **Record. Learn. Rewrite.**
+
+---
+
+## What It Does
+
+Point any app's LLM calls at Cassette. It traces every interaction, builds training datasets from real usage, trains LoRA adapters, and proves whether the trained model is actually better — with numbers, not hope.
+
+```
+your app → Cassette gateway → model server (ollama, llama.cpp, vLLM)
+                |
+                └── traces → dataset → training → better model
+```
+
+**Validated with [OpenFOIA](https://github.com/JordanCoin/openfoia):** 29 government documents extracted, 28 training records curated, LoRA adapter trained in 21 minutes on M4 Mac, format compliance improved from 0.20 → 0.90 on entity validation task. Zero code changes in OpenFOIA — just changed the model name.
 
 ---
 
 ## Quickstart
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/yourname/cassette
-cd cassette
+# Install
+git clone https://github.com/JordanCoin/Cassette
+cd Cassette
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
-# 2. Check everything is working
+# Check system
 cassette doctor
 
-# 3. Run the full loop with a test query
+# Run the full pipeline with a test query
 cassette run-loop --query "What is gradient descent?"
 
-# 4. Inspect results
+# See what was produced
 cassette list-snapshots
+cassette propose-training
 ```
 
-That's it. Cassette is running in mock mode — no GPU or model server needed.
-
-Or run the guided demo:
+No GPU needed. No model server needed. Mock mode works out of the box.
 
 ```bash
+# Or run the guided demo
 cassette demo
 ```
 
-### Using a real model backend
+---
+
+## The Full Loop
 
 ```bash
-# Start a llama.cpp server
-llama-server -m your-model.gguf --port 8080
-
-# Point Cassette at it
+# 1. Route your app's LLM calls through Cassette
 export CASSETTE_PROVIDER=llama_cpp_http
-export CASSETTE_LLAMA_CPP_URL=http://localhost:8080
+export CASSETTE_LLAMA_CPP_URL=http://localhost:11434
+export CASSETTE_MODEL=llama3.2:3b
+make dev
 
-# Verify the connection
-cassette doctor
+# 2. Use your app normally — every LLM call is traced
 
-# Run for real
-cassette run-loop --query "Explain backpropagation"
+# 3. Run the pipeline
+cassette run-loop
+
+# 4. Train a LoRA adapter
+pip install cassette[training]
+cassette train
+
+# 5. Export to ollama
+cassette export-model --name my-model-v1
+
+# 6. Compare base vs trained
+cassette compare --base llama3.2:3b --adapter my-model-v1
+
+# 7. If better, update your app config:
+#    "model": "my-model-v1"
+
+# 8. Keep using your app → more traces → retrain → repeat
 ```
 
----
-
-## What Cassette Does
-
-Cassette turns every interaction into structured data:
-
-* Prompts → recorded
-* Tool usage → traced
-* Outcomes → evaluated
-* Failures → learned from
-* Datasets → generated
-* Models → improved
-
-All of it feeds a continuous loop:
-
-> **observe → evaluate → curate → train → redeploy → repeat**
+See [docs/TRAINING.md](docs/TRAINING.md) for the full training guide.
 
 ---
 
-## Current State
+## Real-World Example: OpenFOIA
 
-253+ tests passing. Foundation complete through milestone 22.
+[OpenFOIA](https://github.com/JordanCoin/openfoia) is an open-source FOIA investigation toolkit. It uses LLMs to validate entity extraction from government documents.
 
-### What's built
+**Integration:** One config change — point the LLM base_url at Cassette's gateway. No code changes.
 
-* **Gateway** — OpenAI-compatible API (`/v1/chat/completions`), health checks, Prometheus metrics
-* **Provider abstraction** — mock + llama.cpp HTTP backends, configurable via env vars
-* **Trace/event system** — every request, stage, and pipeline step is recorded as structured JSONL
-* **Task ledger** — create, track, and update units of work with status transitions
-* **Orchestrator** — stage-based runner with event instrumentation (echo, gather_sources, propose_training)
-* **Web tooling** — search + fetch adapters behind ports for research stages
-* **Data pipeline** — extract → evaluate → promote → snapshot → propose, runnable as one loop
-* **Dataset versioning** — immutable snapshots with content hashing and manifest tracking
-* **Training proposals** — structured plans generated from snapshot metadata
-* **CLI** — `cassette` command for all core workflows without HTTP
-* **Metrics** — Prometheus-compatible `/metrics` endpoint
+**Result:** Cassette traced 29 document extractions, built a training dataset, trained a LoRA adapter on Qwen 2.5 1.5B in 21 minutes on an M4 Mac, and the trained model returned clean JSON entity validation instead of code-fenced markdown. Measured improvement: 0.20 → 0.90 format compliance across 10 test records, 0 regressions.
 
----
-
-## Testing with a Real Backend
-
-```bash
-# 1. Start a local model server (llama.cpp example)
-llama-server -m your-model.gguf --port 8080
-
-# 2. Run integration tests
-CASSETTE_INTEGRATION=1 \
-CASSETTE_PROVIDER=llama_cpp_http \
-CASSETTE_LLAMA_CPP_URL=http://localhost:8080 \
-uv run pytest tests/test_integration_real.py -v
-
-# 3. What "good" output looks like:
-#   test_health_check_reachable PASSED
-#   test_single_completion PASSED
-#   test_full_loop_with_query PASSED
-#   test_persisted_files_exist PASSED
-```
-
-Integration tests are skipped by default so the fast test suite stays deterministic.
+See [docs/INTEGRATION.md](docs/INTEGRATION.md) for how to connect any project.
 
 ---
 
 ## CLI Reference
 
 ```
-cassette demo                          # Guided demo of the full pipeline
-cassette doctor                        # Full system diagnostics
-cassette health                        # Quick provider and system check
-cassette run-loop                      # Run the observe-to-proposal pipeline
-cassette run-loop --query "question"   # Seed a query, then run the pipeline
-cassette run-loop --json               # Output raw JSON instead of summary
-cassette extract-dataset               # Extract dataset from traces
-cassette evaluate-dataset              # Evaluate, promote, and write datasets
-cassette snapshot-dataset              # Snapshot the promoted dataset
-cassette list-snapshots                # List available snapshots
-cassette propose-training              # Generate a training proposal
+cassette demo                                # Guided demo of the full pipeline
+cassette doctor                              # Full system diagnostics
+cassette health                              # Quick provider check
+cassette run-loop                            # observe → evaluate → promote → snapshot → propose
+cassette run-loop --query "question"         # Seed a query, then run
+cassette train                               # Plan → validate → execute LoRA training
+cassette export-model --name my-model        # Merge adapter → GGUF → register with ollama
+cassette compare --base m1 --adapter m2      # Score base vs adapter across 8 dimensions
+cassette validate-training                   # Check if training can run on this hardware
+cassette plan-training                       # Show the training command without running it
+cassette evaluate-dataset                    # Evaluate + promote dataset records
+cassette evaluate-dataset --use-judge        # Add LLM-as-judge scoring
+cassette extract-dataset                     # Extract records from traces
+cassette snapshot-dataset                    # Version the promoted dataset
+cassette list-snapshots                      # List versioned datasets
+cassette propose-training                    # Generate training proposal
 ```
 
-See [examples/WALKTHROUGH.md](examples/WALKTHROUGH.md) for a detailed guide.
-
-All commands accept `--data-dir <path>` to override the data directory (default: `data/gateway`).
+All commands accept `--data-dir <path>` to override the data directory.
 
 ---
 
@@ -138,126 +124,80 @@ All commands accept `--data-dir <path>` to override the data directory (default:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CASSETTE_PROVIDER` | `mock` | Active model provider (`mock`, `llama_cpp_http`) |
-| `CASSETTE_LLAMA_CPP_URL` | `http://localhost:8080` | llama.cpp server URL |
+| `CASSETTE_PROVIDER` | `mock` | Model provider (`mock`, `llama_cpp_http`) |
+| `CASSETTE_MODEL` | `default` | Model name (ollama tag or HuggingFace ID) |
+| `CASSETTE_LLAMA_CPP_URL` | `http://localhost:8080` | Model server URL |
 | `CASSETTE_SEARCH_URL` | `http://localhost:8888` | Search API URL (SearXNG) |
 | `CASSETTE_PROVIDER_TIMEOUT` | `60` | Provider HTTP timeout (seconds) |
-
-Copy `.env.example` to `.env` and adjust for your setup.
-
----
-
-## Docker Compose
-
-Run Cassette in containers with one command:
-
-```bash
-# Mock mode (no model server needed)
-docker compose up --build
-
-# Verify
-curl http://localhost:8000/healthz
-curl -X POST http://localhost:8000/loop/run
-```
-
-### With a real model backend
-
-```bash
-# 1. Place a GGUF model file in ./models/
-mkdir -p models
-# Download or copy your model to models/model.gguf
-
-# 2. Start with backend
-CASSETTE_PROVIDER=llama_cpp_http docker compose --profile with-backend up --build
-
-# 3. Verify
-curl http://localhost:8000/healthz/provider
-
-# 4. Run a completion
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"test","messages":[{"role":"user","content":"hello"}]}'
-```
-
-### With search (SearXNG)
-
-```bash
-docker compose --profile with-search up --build
-```
-
-### Stop and reset
-
-```bash
-docker compose down           # stop services
-docker compose down -v        # stop and remove data volume
-```
-
-Data is persisted in a Docker volume (`cassette-data`) across restarts.
-
----
-
-## HTTP API
-
-```bash
-# Start the gateway
-make dev
-
-# Health
-curl http://localhost:8000/healthz
-curl http://localhost:8000/healthz/provider
-
-# Chat
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"test","messages":[{"role":"user","content":"hello"}]}'
-
-# Full loop
-curl -X POST http://localhost:8000/loop/run
-
-# Metrics
-curl http://localhost:8000/metrics
-```
 
 ---
 
 ## Architecture
 
 ```
-libs/core/        — domain logic, contracts, ports (no IO)
-libs/adapters/    — IO implementations (JSONL, HTTP providers, writers)
-services/gateway/ — FastAPI application
+libs/core/        — contracts, ports, domain logic (no IO)
+libs/adapters/    — JSONL store, HTTP providers, writers
+services/gateway/ — FastAPI gateway (OpenAI-compatible)
 services/orchestrator/ — stage runner and stages
 ```
 
-* **Gateway** — OpenAI-compatible interface + trace logging + metrics
-* **Orchestrator** — Stage-based runner for research + evaluation pipelines
-* **Data Plane** — JSONL persistence, extraction, evaluation, promotion, snapshots
-* **Adapters** — Pluggable backends for model providers, web search, web fetch, storage
+**Gateway** — proxies LLM calls, traces everything, serves metrics
+**Orchestrator** — staged execution with event instrumentation
+**Data pipeline** — extraction, evaluation, promotion, versioned snapshots
+**Training** — LoRA via TRL, model comparison, GGUF export to ollama
+**Adapters** — pluggable backends for storage, providers, web tooling
+
+---
+
+## Comparison Scoring Matrix
+
+`cassette compare` scores responses across 8 dimensions:
+
+| Category | Metric | What it measures |
+|---|---|---|
+| Format | `valid_json` | Response is parseable JSON |
+| Format | `no_code_fences` | No markdown wrappers |
+| Format | `correct_schema` | Has expected keys (keep/remove) |
+| Data | `clean_values` | No type prefixes or confidence strings in values |
+| Data | `numeric_confidence` | Confidence values are numbers |
+| Data | `has_corrections` | Corrected field present |
+| Completeness | `entity_coverage` | Output accounts for input entities |
+| Completeness | `no_phantoms` | Doesn't invent entities beyond input |
+
+---
+
+## Docker Compose
+
+```bash
+docker compose up --build                    # Mock mode
+CASSETTE_PROVIDER=llama_cpp_http \
+  docker compose --profile with-backend up   # With model server
+```
+
+See [compose.yaml](compose.yaml) for full configuration.
 
 ---
 
 ## Limitations
 
-Cassette runs fully locally and supports the complete observe-to-plan pipeline. Actual model training is hardware-dependent and may require a GPU.
-
-Current limitations:
-
-* **No training execution yet** — Cassette plans and validates training but does not run it
-* **No LLM-as-judge evaluation** — evaluation is rule-based (structural checks, golden tests)
-* **No DVC integration** — dataset versioning is file-based snapshots, not Git-tracked
-* **Single provider at a time** — no multi-model routing or fallback chains
-* **No auth** — all endpoints are open (intended for local/dev use)
-
-These are intentional scope boundaries, not bugs. See [TASK.md](TASK.md) for what's next.
+* **Small training sets produce conservative models** — 28 records taught format, not deep entity decisions. More data = broader confidence.
+* **No DVC integration** — dataset versioning is file-based snapshots
+* **Single provider at a time** — no multi-model routing
+* **No auth** — endpoints are open (intended for local/dev use)
+* **GGUF conversion requires git** — llama.cpp converter is auto-downloaded but needs git
 
 ---
 
-## Design Constraints
+## Documentation
 
-* Must run on a **low-resource machine** (Intel MacBook, CPU-only)
-* Must scale to **multi-GPU / Kubernetes**
-* Must support **web research tooling**
-* Must maintain **full traceability**
+| Guide | What |
+|---|---|
+| [docs/TRAINING.md](docs/TRAINING.md) | Full training guide: traces to deployed model |
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | How to connect any project to Cassette |
+| [examples/WALKTHROUGH.md](examples/WALKTHROUGH.md) | Step-by-step walkthrough with examples |
+| [tests/integration/README.md](tests/integration/README.md) | Multi-surface integration testing |
+| [AGENTS.md](AGENTS.md) | Development rules |
+| [PROGRAM.md](PROGRAM.md) | Build loop process |
 
 ---
 
@@ -267,13 +207,15 @@ Cassette treats intelligence as a **process, not a model**.
 
 Models are temporary. The loop is the product.
 
+The goal is freedom from subscription-based AI: train what you want, on your data, on your hardware, improving from your actual usage.
+
 ---
 
 ## Contributing
 
-Cassette is early-stage and built for iteration. Issues and PRs welcome.
+Early-stage, built for iteration. Issues and PRs welcome.
 
-See [AGENTS.md](AGENTS.md) for development rules and [PROGRAM.md](PROGRAM.md) for the build loop.
+340+ tests. Strict typing. Full linting. Integration tests validated on M4 Mac with real ollama backend.
 
 ---
 

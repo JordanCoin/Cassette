@@ -1,38 +1,31 @@
 # TASK.md
 
-## Current Status
+## Status
 
-**v0.1.0** — Milestones 1–27 complete. Open source ready.
+The loop is closed. Cassette can observe, evaluate, train, export, compare, and deploy.
 
-## What Exists
+Validated end-to-end with OpenFOIA on M4 Mac:
+- 29 government documents traced through the gateway
+- 28 records curated into a training dataset
+- LoRA adapter trained in 21 minutes (Qwen 2.5 1.5B, MPS)
+- Adapter exported to GGUF, registered with ollama
+- Format compliance: 0.20 → 0.90 (10/10 records improved, 0 regressions)
+- Trained model running in OpenFOIA with zero code changes
 
-The full observe-to-plan pipeline runs locally:
+## What Works
 
-* **Gateway** — OpenAI-compatible API, health checks, Prometheus metrics
-* **Provider abstraction** — mock + llama.cpp HTTP backends with timeout/error handling
-* **Trace/event system** — structured JSONL recording of all system activity
-* **Task ledger** — status-tracked units of work
-* **Orchestrator** — stage-based runner (echo, gather_sources, propose_training, plan_training, validate_training)
-* **Web tooling** — search + fetch adapters with event instrumentation
-* **Data pipeline** — extract → evaluate → promote → snapshot → propose → plan → validate
-* **Dataset versioning** — immutable snapshots with content hashing
-* **Training planning** — concrete plans with TRL commands and hardware validation
-* **CLI** — 11 commands including demo, doctor, and full pipeline
-* **Docker Compose** — containerized deployment with optional backend/search
-* **Metrics** — Prometheus-compatible counters for requests, providers, stages, loops
-* **298 tests** passing, strict typing, linting
+- **Tracing**: every LLM call through the gateway is recorded
+- **Evaluation**: rule-based checks + LLM-as-judge scoring
+- **Dataset pipeline**: extract → evaluate → promote → snapshot
+- **Training**: LoRA via TRL, plan → validate → execute
+- **Export**: merge adapter → GGUF → ollama registration
+- **Comparison**: 8-dimension scoring matrix (format, data quality, completeness)
+- **CLI**: 16 commands covering the full lifecycle
+- **Docker**: containerized deployment with optional backends
 
 ## What's Next
 
-See GitHub issues for planned work:
-
-* **Training execution** — LoRA/QLoRA via TRL with gated promotion
-* **LLM-as-judge evaluation** — model-based quality scoring for dataset curation
-
-## Design Principles
-
-* Everything is recorded and traceable
-* No training without evaluation gates
-* Prefer honesty over capability (fail clearly, don't pretend)
-* Local-first, scales to GPU/Kubernetes
-* Systems over scripts
+- More training data (100+ documents) for better entity decision generalization
+- Test on Intel Mac, Linux PC, and cloud GPU surfaces
+- Publish adapter to HuggingFace or OpenFOIA releases
+- Automated training pipeline (run loop on schedule)
