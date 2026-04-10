@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from libs.cli import main as cli_main
-from libs.core.comparator import _score_response, compare_models
+from libs.core.comparator import compare_models, score_response_matrix
 
 
 class MockModel:
@@ -59,24 +59,40 @@ def _make_snapshot(tmp_path: Path, records: int = 5) -> Path:
     return path
 
 
-class TestScoreResponse:
+class TestScoreResponseMatrix:
     def test_valid_json_with_keys(self) -> None:
-        resp = '{"keep": [{"raw_text": "FBI"}], "remove": ["junk"]}'
-        assert _score_response(resp) == 1.0
-
-    def test_valid_json_without_keys(self) -> None:
-        resp = '{"entities": [1, 2, 3]}'
-        assert _score_response(resp) == 0.8
+        resp = (
+            '{"keep": [{"raw_text": "Acme Corp", "confidence": 99, '
+            '"corrected": "Acme Corp"}], "remove": ["junk"]}'
+        )
+        m = score_response_matrix(resp, "- organization: Acme Corp")
+        assert m["valid_json"] == 1.0
+        assert m["correct_schema"] == 1.0
+        assert m["no_code_fences"] == 1.0
+        assert m["overall"] > 0.8
 
     def test_code_block_penalized(self) -> None:
-        resp = "```python\nprint('hello')\n```"
-        assert _score_response(resp) < 0.5
+        resp = '```json\n{"keep": []}\n```'
+        m = score_response_matrix(resp)
+        assert m["no_code_fences"] == 0.0
+        assert m["valid_json"] == 0.5  # parseable after cleanup
 
     def test_empty_response(self) -> None:
-        assert _score_response("") == 0.0
+        m = score_response_matrix("")
+        assert m["valid_json"] == 0.0
+        assert m["correct_schema"] == 0.0
+        assert m["overall"] < 0.2
 
-    def test_plain_text(self) -> None:
-        assert _score_response("Some plain text answer") == 0.5
+    def test_dirty_values_penalized(self) -> None:
+        resp = '{"keep": [{"raw_text": "date: \\"June 2025\\"", "confidence": "95%"}]}'
+        m = score_response_matrix(resp, "- date: June 2025")
+        assert m["clean_values"] < 1.0
+
+    def test_clean_values_score_high(self) -> None:
+        resp = '{"keep": [{"raw_text": "June 2025", "confidence": 99, "corrected": "June 2025"}]}'
+        m = score_response_matrix(resp, "- date: June 2025")
+        assert m["clean_values"] == 1.0
+        assert m["numeric_confidence"] == 1.0
 
 
 class TestCompareModels:
@@ -127,6 +143,18 @@ class TestCompareModels:
         result = compare_models(base, adapter, path)
         assert len(result.details) == 3
         assert "change" in result.details[0]
+
+    def test_details_have_matrix(self, tmp_path: Path) -> None:
+        path = _make_snapshot(tmp_path, records=1)
+        base = MockModel("base", "text")
+        adapter = MockModel("adapter", '{"keep": [], "remove": []}')
+        result = compare_models(base, adapter, path)
+        d = result.details[0]
+        assert "base_matrix" in d
+        assert "adapter_matrix" in d
+        assert "valid_json" in d["adapter_matrix"]
+        assert "clean_values" in d["adapter_matrix"]
+        assert "overall" in d["adapter_matrix"]
 
 
 class TestCompareCLI:

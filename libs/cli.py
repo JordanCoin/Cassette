@@ -354,7 +354,7 @@ def cmd_train(args: argparse.Namespace) -> int:
         print(f"  Records: {result['records']}")
         print()
     else:
-        print(f"\n  Training FAILED")
+        print("\n  Training FAILED")
         print(f"  Error: {result.get('error', 'unknown')}")
         print()
 
@@ -411,15 +411,41 @@ def cmd_compare(args: argparse.Namespace) -> int:
         print(f"  Unchanged: {result.unchanged}")
         print()
         print(f"  Recommendation: {result.recommendation.upper()}")
-        print()
 
+        # Score matrix averages
         if result.details:
-            print("  Details:")
+            metrics = [
+                "valid_json", "no_code_fences", "correct_schema",
+                "clean_values", "numeric_confidence", "has_corrections",
+                "entity_coverage", "no_phantoms",
+            ]
+            print()
+            print("  Score Matrix (averages):")
+            print(f"  {'Metric':<22} {'Base':>8} {'Adapter':>8} {'Delta':>8}")
+            print(f"  {'-'*22} {'-'*8} {'-'*8} {'-'*8}")
+            for m in metrics:
+                base_vals = [
+                    d.get("base_matrix", {}).get(m, 0)
+                    for d in result.details
+                ]
+                adpt_vals = [
+                    d.get("adapter_matrix", {}).get(m, 0)
+                    for d in result.details
+                ]
+                b = sum(base_vals) / len(base_vals) if base_vals else 0
+                a = sum(adpt_vals) / len(adpt_vals) if adpt_vals else 0
+                delta = a - b
+                marker = "+" if delta > 0.05 else ("-" if delta < -0.05 else " ")
+                print(f"  {m:<22} {b:>7.2f} {a:>7.2f} {marker}{abs(delta):>6.2f}")
+            print()
+
+            print("  Per-record:")
             for d in result.details[:10]:
                 marker = {"improved": "+", "regressed": "-", "unchanged": "="}[d["change"]]
                 print(
-                    f"    [{marker}] {d['content_hash'][:8]}  "
-                    f"base={d['base_score']:.2f}  adapter={d['adapter_score']:.2f}"
+                    f"    [{marker}] {d.get('content_hash', '')[:8]}  "
+                    f"base={d.get('base_overall', 0):.3f}  "
+                    f"adapter={d.get('adapter_overall', 0):.3f}"
                 )
             if len(result.details) > 10:
                 print(f"    ... and {len(result.details) - 10} more")
