@@ -137,6 +137,55 @@ Copy `.env.example` to `.env` and adjust for your setup.
 
 ---
 
+## Docker Compose
+
+Run Cassette in containers with one command:
+
+```bash
+# Mock mode (no model server needed)
+docker compose up --build
+
+# Verify
+curl http://localhost:8000/healthz
+curl -X POST http://localhost:8000/loop/run
+```
+
+### With a real model backend
+
+```bash
+# 1. Place a GGUF model file in ./models/
+mkdir -p models
+# Download or copy your model to models/model.gguf
+
+# 2. Start with backend
+CASSETTE_PROVIDER=llama_cpp_http docker compose --profile with-backend up --build
+
+# 3. Verify
+curl http://localhost:8000/healthz/provider
+
+# 4. Run a completion
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"test","messages":[{"role":"user","content":"hello"}]}'
+```
+
+### With search (SearXNG)
+
+```bash
+docker compose --profile with-search up --build
+```
+
+### Stop and reset
+
+```bash
+docker compose down           # stop services
+docker compose down -v        # stop and remove data volume
+```
+
+Data is persisted in a Docker volume (`cassette-data`) across restarts.
+
+---
+
 ## HTTP API
 
 ```bash

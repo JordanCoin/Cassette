@@ -1,0 +1,38 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - CASSETTE_PROVIDER=${CASSETTE_PROVIDER:-mock}
+      - CASSETTE_LLAMA_CPP_URL=http://llama:8080
+      - CASSETTE_SEARCH_URL=http://searxng:8080
+      - CASSETTE_PROVIDER_TIMEOUT=${CASSETTE_PROVIDER_TIMEOUT:-120}
+    volumes:
+      - cassette-data:/app/data/gateway
+    restart: unless-stopped
+
+  llama:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    command: >
+      --host 0.0.0.0
+      --port 8080
+      -m /models/model.gguf
+      -c 2048
+      -ngl 0
+    profiles:
+      - with-backend
+
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8888:8080"
+    profiles:
+      - with-search
+
+volumes:
+  cassette-data:
