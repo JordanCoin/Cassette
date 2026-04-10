@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 from libs.core.contracts import DatasetSnapshot
 from libs.core.ports import WebFetch, WebSearch
+from libs.core.training_executor import execute_training
 from libs.core.training_plan import build_proposal
 from libs.core.training_planner import build_training_plan
 from libs.core.training_validator import validate_training
@@ -204,3 +205,64 @@ class ValidateTrainingStage:
         })
 
         return readiness.model_dump(mode="json")
+
+
+class ExecuteTrainingStage:
+    """Validates readiness, then executes training."""
+
+    @property
+    def name(self) -> str:
+        return "execute_training"
+
+    def run(self, context: dict[str, Any]) -> dict[str, Any]:
+        emit: EmitFn = context.get("_emit", _noop_emit)
+
+        snapshot_data = context.get("snapshot")
+        if not snapshot_data:
+            raise ValueError("execute_training requires 'snapshot' in context")
+
+        data_dir = context.get("data_dir", "data/gateway")
+        timeout = int(context.get("timeout", 3600))
+
+        snapshot = DatasetSnapshot.model_validate(snapshot_data)
+
+        # Build plan
+        plan = build_training_plan(snapshot, Path(data_dir))
+
+        # Validate first
+        emit("training.validate.started", {"snapshot_id": snapshot.snapshot_id})
+        readiness = validate_training(plan)
+        emit("training.validate.completed", {
+            "ready": readiness.ready,
+            "issues": len(readiness.issues),
+        })
+
+        if not readiness.ready:
+            raise RuntimeError(
+                f"Training not ready: {'; '.join(readiness.issues)}"
+            )
+
+        # Execute
+        emit("training.execute.started", {
+            "snapshot_id": snapshot.snapshot_id,
+            "method": plan.method,
+            "command": plan.command[:200],
+        })
+
+        result = execute_training(plan, timeout=timeout)
+
+        if result.success:
+            emit("training.execute.completed", {
+                "snapshot_id": snapshot.snapshot_id,
+                "duration_sec": result.duration_sec,
+                "output_dir": result.output_dir,
+            })
+        else:
+            emit("training.execute.failed", {
+                "snapshot_id": snapshot.snapshot_id,
+                "exit_code": result.exit_code,
+                "error": result.error[:200],
+            })
+            raise RuntimeError(f"Training failed: {result.error}")
+
+        return result.model_dump(mode="json")

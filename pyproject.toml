@@ -17,6 +17,11 @@ dev = [
     "mypy>=1.14.0",
     "pytest>=8.3.0",
 ]
+training = [
+    "trl>=0.15.0",
+    "peft>=0.14.0",
+    "torch>=2.0.0",
+]
 
 [project.scripts]
 cassette = "libs.cli:main"

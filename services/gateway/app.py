@@ -182,6 +182,7 @@ async def extract_dataset(
 @app.post("/debug/evaluate-dataset")
 async def evaluate_dataset(
     limit: int = Query(default=200, ge=1, le=10000),
+    use_judge: bool = Query(default=False),
 ) -> dict[str, Any]:
     from libs.adapters.dataset_writer import write_dataset
     from libs.adapters.eval_writer import write_eval_results
@@ -193,7 +194,13 @@ async def evaluate_dataset(
     dataset_path = store._dir / "dataset.jsonl"
     write_dataset(records, dataset_path)
 
-    results = evaluate_records(records)
+    judge_results = None
+    if use_judge and records:
+        from libs.core.judge import judge_records
+
+        judge_results = judge_records(records, provider)
+
+    results = evaluate_records(records, judge_results=judge_results)
     eval_path = store._dir / "eval_results.jsonl"
     write_eval_results(results, eval_path)
 
@@ -348,6 +355,7 @@ async def orchestrator_run(
     from services.orchestrator.runner import run_stage
     from services.orchestrator.stages import (
         EchoStage,
+        ExecuteTrainingStage,
         GatherSourcesStage,
         PlanTrainingStage,
         ProposeTrainingStage,
@@ -356,7 +364,10 @@ async def orchestrator_run(
 
     stage_name = request.get("stage", "echo")
     context = request.get("context", {})
-    available = "echo, gather_sources, propose_training, plan_training, validate_training"
+    available = (
+        "echo, gather_sources, propose_training, "
+        "plan_training, validate_training, execute_training"
+    )
 
     if stage_name == "echo":
         stage = EchoStage()
@@ -371,6 +382,8 @@ async def orchestrator_run(
         stage = PlanTrainingStage()  # type: ignore[assignment]
     elif stage_name == "validate_training":
         stage = ValidateTrainingStage()  # type: ignore[assignment]
+    elif stage_name == "execute_training":
+        stage = ExecuteTrainingStage()  # type: ignore[assignment]
     else:
         return JSONResponse(  # type: ignore[return-value]
             status_code=422,

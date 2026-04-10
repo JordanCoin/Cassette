@@ -287,6 +287,77 @@ def cmd_validate_training(args: argparse.Namespace) -> int:
     return 0 if readiness.ready else 1
 
 
+def cmd_train(args: argparse.Namespace) -> int:
+    from libs.core.training_executor import execute_training
+    from libs.core.training_planner import build_training_plan
+    from libs.core.training_validator import validate_training
+
+    data_dir = Path(args.data_dir)
+    snapshots_dir = data_dir / "snapshots"
+    snapshots = list_snapshots(snapshots_dir)
+
+    if not snapshots:
+        return _error(
+            "No snapshots available.\n"
+            "  Run 'cassette demo' or 'cassette run-loop --query ...' first."
+        )
+
+    if args.snapshot_id:
+        match = [s for s in snapshots if s.snapshot_id == args.snapshot_id]
+        if not match:
+            return _error(f"Snapshot not found: {args.snapshot_id}")
+        snapshot = match[0]
+    else:
+        snapshot = snapshots[-1]
+
+    # Plan
+    try:
+        plan = build_training_plan(snapshot, data_dir)
+    except ValueError as exc:
+        return _error(str(exc))
+
+    print(f"\n  Plan: {plan.method} on {plan.base_model}")
+    print(f"  Dataset: {plan.dataset_path}")
+    print(f"  Output: {plan.output_dir}")
+
+    # Validate
+    readiness = validate_training(plan)
+    if not readiness.ready:
+        print("\n  Validation FAILED:")
+        for issue in readiness.issues:
+            print(f"    - {issue}")
+        print()
+        return 1
+
+    if readiness.warnings:
+        print("\n  Warnings:")
+        for w in readiness.warnings:
+            print(f"    - {w}")
+
+    print("\n  Starting training...")
+
+    # Execute
+    result = execute_training(plan, timeout=args.timeout)
+
+    if result.success:
+        print(f"\n  Training completed in {result.duration_sec:.1f}s")
+        print(f"  Output: {result.output_dir}")
+        if result.stdout_tail:
+            print("\n  Last output:")
+            for line in result.stdout_tail.split("\n")[-5:]:
+                print(f"    {line}")
+        print()
+    else:
+        print(f"\n  Training FAILED (exit code {result.exit_code})")
+        print(f"  Error: {result.error}")
+        print()
+
+    if args.json:
+        _print_json(result.model_dump(mode="json"))
+
+    return 0 if result.success else 1
+
+
 def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
     data_dir = Path(args.data_dir)
@@ -300,7 +371,16 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
         })
         return 0
 
-    eval_results = evaluate_records(records)
+    # Optional LLM-as-judge
+    judge_results = None
+    if getattr(args, "use_judge", False):
+        from libs.core.judge import judge_records
+
+        prov = resolve_provider(get_provider_name())
+        print("  Running LLM-as-judge evaluation...", file=sys.stderr)
+        judge_results = judge_records(records, prov)
+
+    eval_results = evaluate_records(records, judge_results=judge_results)
     labeled = apply_eval_decisions(records, eval_results)
     promoted = select_promoted(labeled)
 
@@ -532,6 +612,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate = sub.add_parser("evaluate-dataset", help="Evaluate, promote, and write datasets")
     evaluate.add_argument("--limit", type=int, default=200, help="Max traces to scan")
+    evaluate.add_argument("--use-judge", action="store_true", help="Enable LLM-as-judge scoring")
 
     sub.add_parser("snapshot-dataset", help="Snapshot the promoted dataset")
 
@@ -547,6 +628,11 @@ def build_parser() -> argparse.ArgumentParser:
     val_train = sub.add_parser("validate-training", help="Check if training can run")
     val_train.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
     val_train.add_argument("--json", action="store_true", help="Output raw JSON")
+
+    train = sub.add_parser("train", help="Execute training (plan -> validate -> train)")
+    train.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
+    train.add_argument("--timeout", type=int, default=3600, help="Training timeout in seconds")
+    train.add_argument("--json", action="store_true", help="Output raw JSON result")
 
     sub.add_parser("health", help="Quick provider and system check")
     sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
@@ -564,6 +650,7 @@ _COMMANDS = {
     "propose-training": cmd_propose_training,
     "plan-training": cmd_plan_training,
     "validate-training": cmd_validate_training,
+    "train": cmd_train,
     "health": cmd_health,
     "doctor": cmd_doctor,
     "demo": cmd_demo,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from libs.core.contracts import DatasetRecord, EvalResult
+from libs.core.contracts import DatasetRecord, EvalResult, JudgeResult
 
 # Minimum lengths to consider content meaningful
 MIN_RESPONSE_LEN = 5
@@ -62,8 +62,17 @@ def _check_record(record: DatasetRecord) -> tuple[list[str], float]:
 def evaluate_records(
     records: list[DatasetRecord],
     golden: dict[str, str] | None = None,
+    judge_results: list[JudgeResult] | None = None,
 ) -> list[EvalResult]:
-    """Evaluate dataset records. Optional golden dict maps content_hash to expected response."""
+    """Evaluate dataset records.
+
+    Optional golden dict maps content_hash to expected response.
+    Optional judge_results incorporate LLM-as-judge scores.
+    """
+    judge_map: dict[str, JudgeResult] = {}
+    if judge_results:
+        judge_map = {str(r.record_id): r for r in judge_results}
+
     results: list[EvalResult] = []
 
     for record in records:
@@ -75,6 +84,14 @@ def evaluate_records(
             if record.response.strip() != expected.strip():
                 flags.append("golden_mismatch")
                 score = max(0.0, score - 0.5)
+
+        # Judge check — blend judge score with rule-based score
+        judge = judge_map.get(str(record.record_id))
+        if judge:
+            # Normalize judge 1-5 to 0-1, blend 50/50 with rule score
+            judge_normalized = (judge.judge_score - 1) / 4.0
+            score = (score + judge_normalized) / 2.0
+            flags.append(f"judge:{judge.judge_score}/5")
 
         # Decision
         if score > 0.7:

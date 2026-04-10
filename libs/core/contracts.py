@@ -124,3 +124,26 @@ class TrainingReadiness(BaseModel):
     issues: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     notes: str = ""
+
+
+class TrainingResult(BaseModel):
+    """Result of a training execution."""
+
+    snapshot_id: str
+    plan_method: str
+    exit_code: int
+    success: bool
+    output_dir: str
+    duration_sec: float
+    stdout_tail: str = Field(default="", description="Last lines of training output")
+    error: str = ""
+
+
+class JudgeResult(BaseModel):
+    """Result of LLM-as-judge evaluation for one record."""
+
+    record_id: UUID
+    content_hash: str
+    judge_score: int = Field(ge=1, le=5, description="1-5 quality score")
+    reasoning: str = ""
+    provider: str = ""
