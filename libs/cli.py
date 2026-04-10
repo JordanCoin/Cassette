@@ -14,7 +14,7 @@ from libs.core.extractor import extract_records
 from libs.core.pipeline import run_full_loop
 from libs.core.promoter import apply_eval_decisions, select_promoted
 from libs.core.provider_registry import resolve_provider
-from libs.core.settings import get_provider_name
+from libs.core.settings import get_provider_name, get_search_url
 from libs.core.snapshots import create_snapshot, list_snapshots
 from libs.core.training_plan import build_proposal
 
@@ -25,10 +25,37 @@ def _get_store(data_dir: Path) -> JsonlStore:
     return JsonlStore(data_dir)
 
 
+def _print_json(data: object) -> None:
+    print(json.dumps(data, indent=2, default=str))
+
+
+def _error(msg: str) -> int:
+    print(f"Error: {msg}", file=sys.stderr)
+    return 1
+
+
+# -- Commands --
+
+
 def cmd_run_loop(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
+
+    # Seed a trace from --query if provided and no traces exist yet
+    if args.query:
+        from libs.core.recorder import record_chat
+
+        record_chat(
+            store,
+            model="cli-input",
+            messages=[{"role": "user", "content": args.query}],
+            response="[recorded] Query: " + args.query,
+            latency_ms=0.0,
+            provider="cli",
+        )
+        print("Recorded query as trace. Running loop...", file=sys.stderr)
+
     result = run_full_loop(store, Path(args.data_dir), trace_limit=args.limit)
-    print(json.dumps(result, indent=2, default=str))
+    _print_json(result)
     return 0 if result.get("status") == "completed" else 1
 
 
@@ -38,11 +65,11 @@ def cmd_extract_dataset(args: argparse.Namespace) -> int:
     records = extract_records(traces)
     output_path = Path(args.data_dir) / "dataset.jsonl"
     count = write_dataset(records, output_path)
-    print(json.dumps({
+    _print_json({
         "traces_scanned": len(traces),
         "records_extracted": count,
         "output_path": str(output_path),
-    }, indent=2))
+    })
     return 0
 
 
@@ -52,20 +79,21 @@ def cmd_snapshot_dataset(args: argparse.Namespace) -> int:
     snapshots_dir = data_dir / "snapshots"
     try:
         snapshot = create_snapshot(promoted_path, snapshots_dir)
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-    except FileExistsError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps(snapshot.model_dump(mode="json"), indent=2, default=str))
+    except FileNotFoundError:
+        return _error(
+            f"No promoted dataset found at {promoted_path}.\n"
+            "  Run 'cassette evaluate-dataset' first to create one."
+        )
+    except FileExistsError:
+        return _error("Snapshot already exists for this dataset content.")
+    _print_json(snapshot.model_dump(mode="json"))
     return 0
 
 
 def cmd_list_snapshots(args: argparse.Namespace) -> int:
     snapshots_dir = Path(args.data_dir) / "snapshots"
     snapshots = list_snapshots(snapshots_dir)
-    print(json.dumps([s.model_dump(mode="json") for s in snapshots], indent=2, default=str))
+    _print_json([s.model_dump(mode="json") for s in snapshots])
     return 0
 
 
@@ -74,20 +102,22 @@ def cmd_propose_training(args: argparse.Namespace) -> int:
     snapshots = list_snapshots(snapshots_dir)
 
     if not snapshots:
-        print("Error: No snapshots available", file=sys.stderr)
-        return 1
+        return _error(
+            "No snapshots available.\n"
+            "  Run 'cassette evaluate-dataset' then 'cassette snapshot-dataset' first."
+        )
 
     if args.snapshot_id:
         match = [s for s in snapshots if s.snapshot_id == args.snapshot_id]
         if not match:
-            print(f"Error: Snapshot not found: {args.snapshot_id}", file=sys.stderr)
-            return 1
+            available = ", ".join(s.snapshot_id for s in snapshots[-3:])
+            return _error(f"Snapshot not found: {args.snapshot_id}\n  Available: {available}")
         snapshot = match[0]
     else:
         snapshot = snapshots[-1]
 
     proposal = build_proposal(snapshot.snapshot_id, snapshot.record_count)
-    print(json.dumps(proposal.model_dump(mode="json"), indent=2, default=str))
+    _print_json(proposal.model_dump(mode="json"))
     return 0
 
 
@@ -96,6 +126,13 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     traces = store.get_latest_traces(args.limit)
     records = extract_records(traces)
+
+    if not records:
+        _print_json({
+            "records_evaluated": 0,
+            "note": "No valid records found. Send some chat requests first.",
+        })
+        return 0
 
     eval_results = evaluate_records(records)
     labeled = apply_eval_decisions(records, eval_results)
@@ -108,13 +145,13 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     rejected = sum(1 for r in eval_results if r.decision == "rejected")
     needs_review = sum(1 for r in eval_results if r.decision == "needs_review")
 
-    print(json.dumps({
+    _print_json({
         "records_evaluated": len(eval_results),
         "accepted": accepted,
         "rejected": rejected,
         "needs_review": needs_review,
         "promoted": len(promoted),
-    }, indent=2))
+    })
     return 0
 
 
@@ -122,16 +159,11 @@ def cmd_health(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     store = _get_store(data_dir)
 
-    # Check data dir
-    traces_exist = store.traces_path.exists()
-    events_exist = store.events_path.exists()
-
-    # Check provider
     provider_name = get_provider_name()
     try:
         prov = resolve_provider(provider_name)
     except ValueError as exc:
-        print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
+        _print_json({"status": "error", "error": str(exc)})
         return 1
 
     health_fn = getattr(prov, "health_check", None)
@@ -140,16 +172,122 @@ def cmd_health(args: argparse.Namespace) -> int:
     else:
         provider_health = {"reachable": True, "note": "no health check"}
 
-    result = {
+    _print_json({
         "status": "ok",
         "provider": provider_name,
         "provider_health": provider_health,
         "data_dir": str(data_dir),
-        "traces_exist": traces_exist,
-        "events_exist": events_exist,
-    }
-    print(json.dumps(result, indent=2, default=str))
+        "traces_exist": store.traces_path.exists(),
+        "events_exist": store.events_path.exists(),
+    })
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Run system checks and report pass/fail for each component."""
+    data_dir = Path(args.data_dir)
+    checks: list[dict[str, str]] = []
+    all_ok = True
+
+    # 1. Data directory
+    store = _get_store(data_dir)
+    checks.append({"check": "data_directory", "status": "ok", "path": str(data_dir)})
+
+    # 2. Provider
+    provider_name = get_provider_name()
+    try:
+        prov = resolve_provider(provider_name)
+        checks.append({"check": "provider_configured", "status": "ok", "provider": provider_name})
+    except ValueError as exc:
+        checks.append({
+            "check": "provider_configured", "status": "fail",
+            "error": str(exc),
+            "fix": "Set CASSETTE_PROVIDER to 'mock' or 'llama_cpp_http'",
+        })
+        all_ok = False
+        prov = None
+
+    # 3. Provider connectivity
+    if prov is not None:
+        health_fn = getattr(prov, "health_check", None)
+        if health_fn:
+            health = health_fn()
+            if health.get("reachable"):
+                checks.append({
+                    "check": "provider_reachable", "status": "ok",
+                    "url": str(health.get("url", "")),
+                })
+            else:
+                checks.append({
+                    "check": "provider_reachable", "status": "fail",
+                    "error": str(health.get("error", "unreachable")),
+                    "fix": f"Start the model server at {health.get('url', 'configured URL')}",
+                })
+                all_ok = False
+        else:
+            checks.append({
+                "check": "provider_reachable", "status": "skip",
+                "note": f"Provider '{provider_name}' has no health check (this is fine for mock)",
+            })
+
+    # 4. Search endpoint
+    search_url = get_search_url()
+    try:
+        import httpx
+
+        httpx.get(f"{search_url}/", timeout=3.0)
+        checks.append({"check": "search_endpoint", "status": "ok", "url": search_url})
+    except Exception:
+        checks.append({
+            "check": "search_endpoint", "status": "warn",
+            "url": search_url,
+            "note": "Search endpoint not reachable. Web research stages will fail.",
+            "fix": "Start SearXNG: docker run -p 8888:8080 searxng/searxng",
+        })
+
+    # 5. Existing data
+    if store.traces_path.exists():
+        store.get_latest_traces(1)
+        checks.append({
+            "check": "existing_data", "status": "ok",
+            "note": "Trace data found",
+        })
+    else:
+        checks.append({
+            "check": "existing_data", "status": "info",
+            "note": "No trace data yet. Send requests or run 'cassette run-loop --query \"test\"'",
+        })
+
+    # Output
+    print()
+    for c in checks:
+        status = c["status"].upper()
+        label = c["check"]
+        if status == "OK":
+            note = c.get("note", "")
+            print(f"  [OK]   {label}" + (f": {note}" if note else ""))
+        elif status == "FAIL":
+            print(f"  [FAIL] {label}: {c.get('error', '')}")
+            if "fix" in c:
+                print(f"         Fix: {c['fix']}")
+            all_ok = False
+        elif status == "WARN":
+            print(f"  [WARN] {label}: {c.get('note', '')}")
+            if "fix" in c:
+                print(f"         Fix: {c['fix']}")
+        elif status == "SKIP":
+            print(f"  [SKIP] {label}: {c.get('note', '')}")
+        else:
+            print(f"  [INFO] {label}: {c.get('note', '')}")
+    print()
+
+    if all_ok:
+        print("  All checks passed. Cassette is ready.")
+    else:
+        print("  Some checks failed. See above for fixes.")
+    print()
+
+    return 0 if all_ok else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -162,6 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_loop = sub.add_parser("run-loop", help="Run the full observe-to-proposal loop")
     run_loop.add_argument("--limit", type=int, default=200, help="Max traces to scan")
+    run_loop.add_argument("--query", default=None, help="Seed a query before running the loop")
 
     extract = sub.add_parser("extract-dataset", help="Extract dataset from traces")
     extract.add_argument("--limit", type=int, default=200, help="Max traces to scan")
@@ -177,6 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
 
     sub.add_parser("health", help="Check system and provider health")
+    sub.add_parser("doctor", help="Run full system diagnostics with pass/fail checks")
 
     return parser
 
@@ -189,6 +329,7 @@ _COMMANDS = {
     "list-snapshots": cmd_list_snapshots,
     "propose-training": cmd_propose_training,
     "health": cmd_health,
+    "doctor": cmd_doctor,
 }
 
 
@@ -205,7 +346,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 1
 
-    return handler(args)
+    try:
+        return handler(args)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        return 130
+    except (ConnectionError, RuntimeError) as exc:
+        return _error(str(exc))
 
 
 if __name__ == "__main__":

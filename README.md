@@ -4,11 +4,45 @@ Cassette records intelligence as it happens—and improves from it.
 
 **Record. Learn. Rewrite.**
 
-Cassette is a self-improving research and training system that continuously records its behavior, evaluates outcomes, and refines its intelligence loop.
+---
 
-It is not a chatbot, wrapper, or one-off agent.
+## Quickstart
 
-It is a **system that evolves itself**.
+```bash
+# 1. Clone and install
+git clone https://github.com/yourname/cassette
+cd cassette
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# 2. Check everything is working
+cassette doctor
+
+# 3. Run the full loop with a test query
+cassette run-loop --query "What is gradient descent?"
+
+# 4. Inspect results
+cassette list-snapshots
+```
+
+That's it. Cassette is running in mock mode — no GPU or model server needed.
+
+### Using a real model backend
+
+```bash
+# Start a llama.cpp server
+llama-server -m your-model.gguf --port 8080
+
+# Point Cassette at it
+export CASSETTE_PROVIDER=llama_cpp_http
+export CASSETTE_LLAMA_CPP_URL=http://localhost:8080
+
+# Verify the connection
+cassette doctor
+
+# Run for real
+cassette run-loop --query "Explain backpropagation"
+```
 
 ---
 
@@ -31,7 +65,7 @@ All of it feeds a continuous loop:
 
 ## Current State
 
-253 tests passing. Foundation complete through milestone 21.
+253+ tests passing. Foundation complete through milestone 22.
 
 ### What's built
 
@@ -49,39 +83,25 @@ All of it feeds a continuous loop:
 
 ---
 
-## Architecture (High-Level)
+## CLI Reference
 
-* **Gateway** — OpenAI-compatible interface + trace logging + metrics
-* **Orchestrator** — Stage-based runner for research + evaluation pipelines
-* **Data Plane** — JSONL persistence, dataset extraction, evaluation, promotion, snapshots
-* **Adapters** — Pluggable backends for model providers, web search, web fetch, storage
+```
+cassette doctor                        # Full system diagnostics
+cassette health                        # Quick provider + system check
+cassette run-loop                      # Full observe-to-proposal pipeline
+cassette run-loop --query "question"   # Seed a query, then run the loop
+cassette extract-dataset               # Extract dataset from traces
+cassette evaluate-dataset              # Evaluate + promote + write datasets
+cassette snapshot-dataset              # Snapshot the promoted dataset
+cassette list-snapshots                # List available snapshots
+cassette propose-training              # Generate a training proposal
+```
+
+All commands accept `--data-dir <path>` to override the data directory (default: `data/gateway`).
 
 ---
 
-## Getting Started
-
-```bash
-git clone https://github.com/yourname/cassette
-cd cassette
-
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# Run checks
-make check
-
-# Start the gateway
-make dev
-
-# Run the full loop
-cassette run-loop
-
-# Check system health
-cassette health
-```
-
-### Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
@@ -90,19 +110,47 @@ cassette health
 | `CASSETTE_SEARCH_URL` | `http://localhost:8888` | Search API URL (SearXNG) |
 | `CASSETTE_PROVIDER_TIMEOUT` | `60` | Provider HTTP timeout (seconds) |
 
+Copy `.env.example` to `.env` and adjust for your setup.
+
 ---
 
-## CLI
+## HTTP API
+
+```bash
+# Start the gateway
+make dev
+
+# Health
+curl http://localhost:8000/healthz
+curl http://localhost:8000/healthz/provider
+
+# Chat
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"test","messages":[{"role":"user","content":"hello"}]}'
+
+# Full loop
+curl -X POST http://localhost:8000/loop/run
+
+# Metrics
+curl http://localhost:8000/metrics
+```
+
+---
+
+## Architecture
 
 ```
-cassette run-loop              # Full observe-to-proposal pipeline
-cassette extract-dataset       # Extract dataset from traces
-cassette evaluate-dataset      # Evaluate + promote + write datasets
-cassette snapshot-dataset      # Snapshot the promoted dataset
-cassette list-snapshots        # List available snapshots
-cassette propose-training      # Generate a training proposal
-cassette health                # Check system + provider health
+libs/core/        — domain logic, contracts, ports (no IO)
+libs/adapters/    — IO implementations (JSONL, HTTP providers, writers)
+services/gateway/ — FastAPI application
+services/orchestrator/ — stage runner and stages
 ```
+
+* **Gateway** — OpenAI-compatible interface + trace logging + metrics
+* **Orchestrator** — Stage-based runner for research + evaluation pipelines
+* **Data Plane** — JSONL persistence, extraction, evaluation, promotion, snapshots
+* **Adapters** — Pluggable backends for model providers, web search, web fetch, storage
 
 ---
 
@@ -119,9 +167,7 @@ cassette health                # Check system + provider health
 
 Cassette treats intelligence as a **process, not a model**.
 
-Models are temporary.
-
-The loop is the product.
+Models are temporary. The loop is the product.
 
 ---
 
