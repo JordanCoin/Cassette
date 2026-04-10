@@ -15,6 +15,7 @@ from libs.core.contracts import (
 )
 from libs.core.evaluator import evaluate_records
 from libs.core.extractor import extract_records
+from libs.core.metrics import registry as metrics
 from libs.core.ports import EventStore
 from libs.core.promoter import apply_eval_decisions, select_promoted
 from libs.core.snapshots import create_snapshot
@@ -50,6 +51,7 @@ def run_full_loop(
     )
     store.save_task(task)
     store.update_task_status(str(task.task_id), TaskStatus.running)
+    metrics.inc("cassette_loop_runs_total")
     tid = task.trace_id
 
     result: dict[str, Any] = {"task_id": str(task.task_id), "trace_id": str(tid)}

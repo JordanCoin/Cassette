@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 from libs.adapters.jsonl_store import JsonlStore
 from libs.core.contracts import Event, Task, TaskStatus
+from libs.core.metrics import registry as metrics
 from libs.core.ports import ModelProvider
 from libs.core.provider_registry import resolve_provider
 from libs.core.recorder import record_chat, record_chat_error, record_request
@@ -43,6 +44,7 @@ class RecordingMiddleware(BaseHTTPMiddleware):
         start = time.monotonic()
         response = await call_next(request)
         latency_ms = (time.monotonic() - start) * 1000
+        metrics.inc("cassette_requests_total", labels={"path": request.url.path})
         if request.url.path != "/v1/chat/completions":
             record_request(
                 store,
@@ -62,6 +64,19 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+async def get_metrics() -> Response:
+    return Response(content=metrics.export(), media_type="text/plain; charset=utf-8")
+
+
+@app.get("/healthz/provider")
+async def provider_health() -> dict[str, object]:
+    health_fn = getattr(provider, "health_check", None)
+    if health_fn is None:
+        return {"provider": provider.name, "reachable": True, "note": "no health check"}
+    return {"provider": provider.name, **health_fn()}
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResponse:
     start = time.monotonic()
@@ -69,8 +84,10 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     backend = _backend_url()
 
     try:
+        metrics.inc("cassette_provider_calls_total", labels={"provider": provider.name})
         response_text = provider.complete(messages_raw)
     except (ConnectionError, RuntimeError) as exc:
+        metrics.inc("cassette_provider_failures_total", labels={"provider": provider.name})
         latency_ms = (time.monotonic() - start) * 1000
         record_chat_error(
             store,
@@ -280,6 +297,7 @@ async def create_task(request: CreateTaskRequest) -> dict[str, Any]:
     )
     store.save_task(task)
     _emit_task_event(task, "task.created")
+    metrics.inc("cassette_tasks_created_total")
     return task.model_dump(mode="json")
 
 

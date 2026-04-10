@@ -15,3 +15,7 @@ def get_llama_cpp_url() -> str:
 
 def get_search_url() -> str:
     return os.environ.get("CASSETTE_SEARCH_URL", "http://localhost:8888")
+
+
+def get_provider_timeout() -> float:
+    return float(os.environ.get("CASSETTE_PROVIDER_TIMEOUT", "60"))

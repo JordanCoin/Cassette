@@ -29,47 +29,32 @@ All of it feeds a continuous loop:
 
 ---
 
-## Core Ideas
+## Current State
 
-* **Everything is recorded**
-  Every meaningful interaction becomes an immutable event.
+253 tests passing. Foundation complete through milestone 21.
 
-* **Learning is gated**
-  No automatic training without evaluation and verification.
+### What's built
 
-* **Research is first-class**
-  Web search + retrieval are required, not optional.
-
-* **Systems over scripts**
-  Cassette is built as a long-running, composable machine—not a collection of tools.
+* **Gateway** — OpenAI-compatible API (`/v1/chat/completions`), health checks, Prometheus metrics
+* **Provider abstraction** — mock + llama.cpp HTTP backends, configurable via env vars
+* **Trace/event system** — every request, stage, and pipeline step is recorded as structured JSONL
+* **Task ledger** — create, track, and update units of work with status transitions
+* **Orchestrator** — stage-based runner with event instrumentation (echo, gather_sources, propose_training)
+* **Web tooling** — search + fetch adapters behind ports for research stages
+* **Data pipeline** — extract → evaluate → promote → snapshot → propose, runnable as one loop
+* **Dataset versioning** — immutable snapshots with content hashing and manifest tracking
+* **Training proposals** — structured plans generated from snapshot metadata
+* **CLI** — `cassette` command for all core workflows without HTTP
+* **Metrics** — Prometheus-compatible `/metrics` endpoint
 
 ---
 
 ## Architecture (High-Level)
 
-* **Gateway**
-  OpenAI-compatible interface + trace logging
-
-* **Loop (Orchestrator)**
-  Runs research + evaluation pipelines
-
-* **Archive**
-  Stores traces, datasets, artifacts
-
-* **Trainer**
-  Fine-tunes models using curated data
-
-* **Engine**
-  Model inference layer (local → GPU → cluster)
-
----
-
-## Design Constraints
-
-* Must run on a **low-resource machine** (Intel MacBook, CPU-only)
-* Must scale to **multi-GPU / Kubernetes**
-* Must support **web research tooling**
-* Must maintain **full traceability**
+* **Gateway** — OpenAI-compatible interface + trace logging + metrics
+* **Orchestrator** — Stage-based runner for research + evaluation pipelines
+* **Data Plane** — JSONL persistence, dataset extraction, evaluation, promotion, snapshots
+* **Adapters** — Pluggable backends for model providers, web search, web fetch, storage
 
 ---
 
@@ -83,8 +68,50 @@ uv venv
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 
+# Run checks
+make check
+
+# Start the gateway
 make dev
+
+# Run the full loop
+cassette run-loop
+
+# Check system health
+cassette health
 ```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `CASSETTE_PROVIDER` | `mock` | Active model provider (`mock`, `llama_cpp_http`) |
+| `CASSETTE_LLAMA_CPP_URL` | `http://localhost:8080` | llama.cpp server URL |
+| `CASSETTE_SEARCH_URL` | `http://localhost:8888` | Search API URL (SearXNG) |
+| `CASSETTE_PROVIDER_TIMEOUT` | `60` | Provider HTTP timeout (seconds) |
+
+---
+
+## CLI
+
+```
+cassette run-loop              # Full observe-to-proposal pipeline
+cassette extract-dataset       # Extract dataset from traces
+cassette evaluate-dataset      # Evaluate + promote + write datasets
+cassette snapshot-dataset      # Snapshot the promoted dataset
+cassette list-snapshots        # List available snapshots
+cassette propose-training      # Generate a training proposal
+cassette health                # Check system + provider health
+```
+
+---
+
+## Design Constraints
+
+* Must run on a **low-resource machine** (Intel MacBook, CPU-only)
+* Must scale to **multi-GPU / Kubernetes**
+* Must support **web research tooling**
+* Must maintain **full traceability**
 
 ---
 
@@ -95,12 +122,6 @@ Cassette treats intelligence as a **process, not a model**.
 Models are temporary.
 
 The loop is the product.
-
----
-
-## Status
-
-Early-stage. Built for iteration, not stability.
 
 ---
 

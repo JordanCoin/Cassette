@@ -21,7 +21,12 @@ def _is_valid_chat_trace(trace: Trace) -> bool:
         return False
     if not trace.response or trace.response.startswith("[error]"):
         return False
+    if len(trace.response.strip()) < 2:
+        return False
     if not trace.messages:
+        return False
+    # Must have at least one message with content
+    if not any(m.get("content") for m in trace.messages):
         return False
     return True
 

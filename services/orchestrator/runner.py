@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from libs.core.contracts import Event, Task, TaskStatus
+from libs.core.metrics import registry as metrics
 from libs.core.ports import EventStore, TaskStore
 from services.orchestrator.stages import Stage
 
@@ -67,6 +68,7 @@ def run_stage(
     if updated:
         task = updated
     _emit(event_store, task, "stage.started", {"stage": stage.name})
+    metrics.inc("cassette_stage_runs_total", labels={"stage": stage.name})
 
     # Inject emitter for stages to use for step-level events
     def stage_emit(event_type: str, payload: dict[str, Any] | None = None) -> None:
@@ -78,6 +80,7 @@ def run_stage(
     try:
         result = stage.run(context)
     except Exception as exc:
+        metrics.inc("cassette_stage_failures_total", labels={"stage": stage.name})
         task_store.update_task_status(str(task.task_id), TaskStatus.failed)
         _emit(event_store, task, "stage.failed", {
             "stage": stage.name,

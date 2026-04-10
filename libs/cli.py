@@ -13,6 +13,8 @@ from libs.core.evaluator import evaluate_records
 from libs.core.extractor import extract_records
 from libs.core.pipeline import run_full_loop
 from libs.core.promoter import apply_eval_decisions, select_promoted
+from libs.core.provider_registry import resolve_provider
+from libs.core.settings import get_provider_name
 from libs.core.snapshots import create_snapshot, list_snapshots
 from libs.core.training_plan import build_proposal
 
@@ -116,6 +118,40 @@ def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    data_dir = Path(args.data_dir)
+    store = _get_store(data_dir)
+
+    # Check data dir
+    traces_exist = store.traces_path.exists()
+    events_exist = store.events_path.exists()
+
+    # Check provider
+    provider_name = get_provider_name()
+    try:
+        prov = resolve_provider(provider_name)
+    except ValueError as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
+        return 1
+
+    health_fn = getattr(prov, "health_check", None)
+    if health_fn:
+        provider_health = health_fn()
+    else:
+        provider_health = {"reachable": True, "note": "no health check"}
+
+    result = {
+        "status": "ok",
+        "provider": provider_name,
+        "provider_health": provider_health,
+        "data_dir": str(data_dir),
+        "traces_exist": traces_exist,
+        "events_exist": events_exist,
+    }
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cassette", description="Cassette CLI")
     parser.add_argument(
@@ -140,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     propose = sub.add_parser("propose-training", help="Generate a training proposal")
     propose.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
 
+    sub.add_parser("health", help="Check system and provider health")
+
     return parser
 
 
@@ -150,6 +188,7 @@ _COMMANDS = {
     "snapshot-dataset": cmd_snapshot_dataset,
     "list-snapshots": cmd_list_snapshots,
     "propose-training": cmd_propose_training,
+    "health": cmd_health,
 }
 
 
