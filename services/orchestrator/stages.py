@@ -10,6 +10,7 @@ from libs.core.contracts import DatasetSnapshot
 from libs.core.ports import WebFetch, WebSearch
 from libs.core.training_plan import build_proposal
 from libs.core.training_planner import build_training_plan
+from libs.core.training_validator import validate_training
 
 # Type alias for the emitter callback injected by the runner.
 EmitFn = Callable[[str, dict[str, Any] | None], None]
@@ -171,3 +172,35 @@ class PlanTrainingStage:
         })
 
         return plan.model_dump(mode="json")
+
+
+class ValidateTrainingStage:
+    """Checks whether training can realistically run."""
+
+    @property
+    def name(self) -> str:
+        return "validate_training"
+
+    def run(self, context: dict[str, Any]) -> dict[str, Any]:
+        emit: EmitFn = context.get("_emit", _noop_emit)
+
+        snapshot_data = context.get("snapshot")
+        if not snapshot_data:
+            raise ValueError("validate_training requires 'snapshot' in context")
+
+        data_dir = context.get("data_dir", "data/gateway")
+        snapshot = DatasetSnapshot.model_validate(snapshot_data)
+
+        emit("training.validate.started", {"snapshot_id": snapshot.snapshot_id})
+
+        plan = build_training_plan(snapshot, Path(data_dir))
+        readiness = validate_training(plan)
+
+        emit("training.validate.completed", {
+            "snapshot_id": snapshot.snapshot_id,
+            "ready": readiness.ready,
+            "issues": len(readiness.issues),
+            "warnings": len(readiness.warnings),
+        })
+
+        return readiness.model_dump(mode="json")

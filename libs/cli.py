@@ -229,6 +229,64 @@ def cmd_plan_training(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate_training(args: argparse.Namespace) -> int:
+    from libs.core.training_planner import build_training_plan
+    from libs.core.training_validator import validate_training
+
+    data_dir = Path(args.data_dir)
+    snapshots_dir = data_dir / "snapshots"
+    snapshots = list_snapshots(snapshots_dir)
+
+    if not snapshots:
+        return _error(
+            "No snapshots available.\n"
+            "  Run 'cassette evaluate-dataset' then 'cassette snapshot-dataset' first."
+        )
+
+    if args.snapshot_id:
+        match = [s for s in snapshots if s.snapshot_id == args.snapshot_id]
+        if not match:
+            available = ", ".join(s.snapshot_id for s in snapshots[-3:])
+            return _error(f"Snapshot not found: {args.snapshot_id}\n  Available: {available}")
+        snapshot = match[0]
+    else:
+        snapshot = snapshots[-1]
+
+    try:
+        plan = build_training_plan(snapshot, data_dir)
+    except ValueError as exc:
+        return _error(str(exc))
+
+    readiness = validate_training(plan)
+
+    if args.json:
+        _print_json(readiness.model_dump(mode="json"))
+    else:
+        print()
+        status = "READY" if readiness.ready else "NOT READY"
+        print(f"  Training Validation: {status}")
+        print("  ========================")
+        print(f"  Snapshot:  {readiness.snapshot_id}")
+        print(f"  Model:     {readiness.base_model}")
+        print(f"  Method:    {readiness.method}")
+        print(f"  Dataset:   {readiness.dataset_path}")
+        if readiness.issues:
+            print()
+            print("  Issues (blocking):")
+            for issue in readiness.issues:
+                print(f"    - {issue}")
+        if readiness.warnings:
+            print()
+            print("  Warnings:")
+            for warning in readiness.warnings:
+                print(f"    - {warning}")
+        print()
+        print(f"  {readiness.notes}")
+        print()
+
+    return 0 if readiness.ready else 1
+
+
 def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
     data_dir = Path(args.data_dir)
@@ -486,6 +544,10 @@ def build_parser() -> argparse.ArgumentParser:
     plan_train.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
     plan_train.add_argument("--json", action="store_true", help="Output raw JSON")
 
+    val_train = sub.add_parser("validate-training", help="Check if training can run")
+    val_train.add_argument("--snapshot-id", default=None, help="Snapshot ID (default: latest)")
+    val_train.add_argument("--json", action="store_true", help="Output raw JSON")
+
     sub.add_parser("health", help="Quick provider and system check")
     sub.add_parser("doctor", help="Full system diagnostics with pass/fail checks")
     sub.add_parser("demo", help="Run a sample workflow showing the full pipeline")
@@ -501,6 +563,7 @@ _COMMANDS = {
     "list-snapshots": cmd_list_snapshots,
     "propose-training": cmd_propose_training,
     "plan-training": cmd_plan_training,
+    "validate-training": cmd_validate_training,
     "health": cmd_health,
     "doctor": cmd_doctor,
     "demo": cmd_demo,

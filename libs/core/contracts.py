@@ -111,3 +111,16 @@ class TrainingPlan(BaseModel):
     output_dir: str
     command: str = Field(description="Runnable training command")
     notes: str = ""
+
+
+class TrainingReadiness(BaseModel):
+    """Result of pre-training validation."""
+
+    snapshot_id: str
+    dataset_path: str
+    base_model: str
+    method: str
+    ready: bool
+    issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    notes: str = ""
