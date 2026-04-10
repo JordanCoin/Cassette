@@ -120,13 +120,15 @@ def cmd_run_loop(args: argparse.Namespace) -> int:
 
 def cmd_extract_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
+    strategy = getattr(args, "split", "full")
     traces = store.get_latest_traces(args.limit)
-    records = extract_records(traces)
+    records = extract_records(traces, strategy=strategy)
     output_path = Path(args.data_dir) / "dataset.jsonl"
     count = write_dataset(records, output_path)
     _print_json({
         "traces_scanned": len(traces),
         "records_extracted": count,
+        "split_strategy": strategy,
         "output_path": str(output_path),
     })
     return 0
@@ -457,8 +459,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
 def cmd_evaluate_dataset(args: argparse.Namespace) -> int:
     store = _get_store(Path(args.data_dir))
     data_dir = Path(args.data_dir)
+    strategy = getattr(args, "split", "full")
     traces = store.get_latest_traces(args.limit)
-    records = extract_records(traces)
+    records = extract_records(traces, strategy=strategy)
 
     if not records:
         _print_json({
@@ -766,11 +769,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_loop.add_argument("--query", default=None, help="Seed a query before running")
     run_loop.add_argument("--json", action="store_true", help="Output raw JSON instead of summary")
 
+    _split_choices = ["full", "per_entity", "per_type"]
+    _split_help = "Split: full, per_entity, or per_type"
+
     extract = sub.add_parser("extract-dataset", help="Extract dataset from traces")
-    extract.add_argument("--limit", type=int, default=200, help="Max traces to scan")
+    extract.add_argument("--limit", type=int, default=200)
+    extract.add_argument("--split", default="full", choices=_split_choices, help=_split_help)
 
     evaluate = sub.add_parser("evaluate-dataset", help="Evaluate, promote, and write datasets")
-    evaluate.add_argument("--limit", type=int, default=200, help="Max traces to scan")
+    evaluate.add_argument("--limit", type=int, default=200)
+    evaluate.add_argument("--split", default="full", choices=_split_choices, help=_split_help)
     evaluate.add_argument("--use-judge", action="store_true", help="Enable LLM-as-judge scoring")
 
     sub.add_parser("snapshot-dataset", help="Snapshot the promoted dataset")

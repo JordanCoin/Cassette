@@ -173,12 +173,13 @@ async def debug_events(
 @app.post("/debug/extract-dataset")
 async def extract_dataset(
     limit: int = Query(default=200, ge=1, le=10000),
+    split: str = Query(default="full"),
 ) -> dict[str, Any]:
     from libs.adapters.dataset_writer import write_dataset
     from libs.core.extractor import extract_records
 
     traces = store.get_latest_traces(limit)
-    records = extract_records(traces)
+    records = extract_records(traces, strategy=split)
     output_path = store._dir / "dataset.jsonl"
     count = write_dataset(records, output_path)
     return {
@@ -191,6 +192,7 @@ async def extract_dataset(
 @app.post("/debug/evaluate-dataset")
 async def evaluate_dataset(
     limit: int = Query(default=200, ge=1, le=10000),
+    split: str = Query(default="full"),
     use_judge: bool = Query(default=False),
 ) -> dict[str, Any]:
     from libs.adapters.dataset_writer import write_dataset
@@ -199,7 +201,7 @@ async def evaluate_dataset(
     from libs.core.extractor import extract_records
 
     traces = store.get_latest_traces(limit)
-    records = extract_records(traces)
+    records = extract_records(traces, strategy=split)
     dataset_path = store._dir / "dataset.jsonl"
     write_dataset(records, dataset_path)
 
@@ -229,6 +231,7 @@ async def evaluate_dataset(
 @app.post("/debug/promote-dataset")
 async def promote_dataset(
     limit: int = Query(default=200, ge=1, le=10000),
+    split: str = Query(default="full"),
 ) -> dict[str, Any]:
     from libs.adapters.dataset_writer import write_dataset
     from libs.core.evaluator import evaluate_records
@@ -236,7 +239,7 @@ async def promote_dataset(
     from libs.core.promoter import apply_eval_decisions, select_promoted
 
     traces = store.get_latest_traces(limit)
-    records = extract_records(traces)
+    records = extract_records(traces, strategy=split)
     results = evaluate_records(records)
 
     labeled = apply_eval_decisions(records, results)
