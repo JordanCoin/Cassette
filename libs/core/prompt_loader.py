@@ -1,4 +1,10 @@
-"""Prompt loader — reads prompt templates and output schemas from YAML files."""
+"""Prompt loader — reads prompt templates and output schemas from YAML files.
+
+Each prompt YAML defines:
+- system: the role/rules (sent as a system message)
+- user: the task-specific input (sent as a user message, with {var} placeholders)
+- output_schema: optional JSON schema for structured output
+"""
 
 from __future__ import annotations
 
@@ -13,30 +19,38 @@ PROMPTS_DIR = Path(get_str("prompts_dir"))
 
 
 def load_prompt(name: str, prompts_dir: Path | None = None) -> dict[str, Any]:
-    """Load a prompt template by name."""
+    """Load a prompt definition by name."""
     directory = prompts_dir or PROMPTS_DIR
     path = directory / f"{name}.yaml"
 
     if not path.exists():
         raise FileNotFoundError(
-            f"Prompt template not found: {path}\n"
+            f"Prompt not found: {path}\n"
             f"Available: {', '.join(p.stem for p in directory.glob('*.yaml'))}"
         )
 
     with open(path) as f:
         data: dict[str, Any] = yaml.safe_load(f)
 
-    if "template" not in data:
-        raise ValueError(f"Prompt {name} is missing 'template' field")
+    if "system" not in data or "user" not in data:
+        raise ValueError(
+            f"Prompt {name!r} must define both 'system' and 'user' fields"
+        )
 
     return data
 
 
-def render_prompt(name: str, **kwargs: str) -> str:
-    """Load a prompt template and render it with the given variables."""
+def render_messages(name: str, **kwargs: str) -> list[dict[str, str]]:
+    """Render a prompt into OpenAI-style chat messages.
+
+    Returns [{"role": "system", "content": ...}, {"role": "user", "content": ...}].
+    Variables in kwargs fill {placeholders} in the user template.
+    """
     data = load_prompt(name)
-    result: str = data["template"].format(**kwargs)
-    return result
+    return [
+        {"role": "system", "content": data["system"].strip()},
+        {"role": "user", "content": data["user"].format(**kwargs).strip()},
+    ]
 
 
 def get_output_schema(name: str) -> dict[str, Any] | None:

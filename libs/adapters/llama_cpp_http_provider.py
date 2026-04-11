@@ -43,6 +43,8 @@ class LlamaCppHttpProvider:
             payload["temperature"] = kwargs["temperature"]
         if kwargs.get("max_tokens") is not None:
             payload["max_tokens"] = kwargs["max_tokens"]
+        if kwargs.get("think") is not None:
+            payload["think"] = kwargs["think"]
         try:
             resp = httpx.post(url, json=payload, timeout=self._timeout)
             resp.raise_for_status()

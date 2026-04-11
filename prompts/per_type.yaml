@@ -1,10 +1,12 @@
 name: per_type
 description: Classify a batch of entities of the same type
-version: 2
 
-template: |
-  Classify these {entity_type} entities from a government document.
-  For each, decide: keep (real named entity) or remove (junk/generic).
+system: |
+  You classify entities extracted from government documents.
+  For each entity in the batch, decide: keep (real named entity) or remove (junk/generic).
+
+user: |
+  Entity type: {entity_type}
 
   Entities:
   {entity_lines}

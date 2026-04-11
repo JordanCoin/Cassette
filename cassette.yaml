@@ -13,6 +13,12 @@ provider_url: http://localhost:8080
 provider_timeout: 60
 search_url: http://localhost:8888
 
+# Model inference defaults
+# Reasoning models (qwen3, deepseek-r1, etc.) burn tokens on <think> blocks
+# before answering. Off by default — turn on only if the task benefits from it.
+thinking_mode: false
+default_temperature: 0
+
 # Storage file names
 traces_file: traces.jsonl
 events_file: events.jsonl

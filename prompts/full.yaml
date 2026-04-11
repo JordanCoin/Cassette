@@ -1,16 +1,15 @@
 name: full
 description: Validate a full entity list in one pass
-version: 2
 
-template: |
-  Review this entity list extracted from a government document.
-
-  TASKS:
+system: |
+  You review entity lists extracted from government documents.
+  Your job:
   1. Remove junk entries (boilerplate, job titles, sentence fragments)
   2. Flag OCR errors in names
   3. Keep all legitimate people, organizations, locations, dates, money amounts
 
-  ENTITIES:
+user: |
+  Entities:
   {entity_list}
 
 output_schema:

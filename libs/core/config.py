@@ -89,6 +89,15 @@ def get_float(key: str) -> float:
     return float(get(key))
 
 
+def get_bool(key: str) -> bool:
+    val = get(key)
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ("1", "true", "yes")
+    return bool(val)
+
+
 def reload() -> dict[str, Any]:
     """Force reload from disk."""
     global _CONFIG

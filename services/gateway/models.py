@@ -22,6 +22,7 @@ class ChatCompletionRequest(BaseModel):
     response_format: ResponseFormat | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    think: bool | None = None  # reasoning-model override, null → cassette.yaml default
 
 
 class ChatChoice(BaseModel):

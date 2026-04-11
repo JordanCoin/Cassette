@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from libs.adapters.jsonl_store import JsonlStore
-from libs.core.config import get_str
+from libs.core.config import get_bool, get_str
 from libs.core.contracts import Event, Task, TaskStatus
 from libs.core.metrics import registry as metrics
 from libs.core.ports import ModelProvider
@@ -91,6 +91,8 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         extra["temperature"] = request.temperature
     if request.max_tokens is not None:
         extra["max_tokens"] = request.max_tokens
+    # Thinking mode: explicit request > yaml default
+    extra["think"] = request.think if request.think is not None else get_bool("thinking_mode")
 
     try:
         metrics.inc("cassette_provider_calls_total", labels={"provider": provider.name})

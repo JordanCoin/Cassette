@@ -1,12 +1,9 @@
 name: per_entity
 description: Classify a single entity as keep or remove
-version: 2
 
-template: |
-  Classify this entity extracted from a government document.
-
-  Type: {entity_type}
-  Text: "{entity_text}"
+system: |
+  You classify entities extracted from government documents.
+  For each entity, decide: keep (real named thing) or remove (junk/generic).
 
   REMOVE if:
   - Job title or role (not a specific person's name)
@@ -19,6 +16,10 @@ template: |
   - Specific named organization
   - Specific date, location, or dollar amount
   - Document or case number
+
+user: |
+  Type: {entity_type}
+  Text: "{entity_text}"
 
 output_schema:
   type: object

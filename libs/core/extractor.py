@@ -15,7 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from libs.core.contracts import DatasetRecord, Trace
-from libs.core.prompt_loader import render_prompt
+from libs.core.prompt_loader import render_messages
 
 SPLIT_STRATEGIES = ("full", "per_entity", "per_type")
 
@@ -104,14 +104,13 @@ def _split_per_entity(
         if not decision:
             continue
 
-        msg = render_prompt(
+        messages: list[dict[str, Any]] = render_messages(  # type: ignore[assignment]
             "per_entity",
             entity_type=entity["type"],
             entity_text=raw,
         )
         resp = decision
 
-        messages: list[dict[str, Any]] = [{"role": "user", "content": msg}]
         h = _content_hash(messages, resp)
         if h in seen_hashes:
             continue
@@ -165,14 +164,13 @@ def _split_per_type(
         if not decision_lines:
             continue
 
-        msg = render_prompt(
+        messages: list[dict[str, Any]] = render_messages(  # type: ignore[assignment]
             "per_type",
             entity_type=entity_type,
             entity_lines="\n".join(entity_lines),
         )
         resp = "Decisions:\n" + "\n".join(decision_lines)
 
-        messages: list[dict[str, Any]] = [{"role": "user", "content": msg}]
         h = _content_hash(messages, resp)
         if h in seen_hashes:
             continue
