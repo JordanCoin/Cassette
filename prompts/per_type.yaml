@@ -1,14 +1,33 @@
 name: per_type
 description: Classify a batch of entities of the same type
-version: 1
+version: 2
 
 template: |
-  Entity type: {entity_type}
+  Classify these {entity_type} entities from a government document.
+  For each, decide: keep (real named entity) or remove (junk/generic).
+
   Entities:
   {entity_lines}
 
-  Which are real entities and which are junk?
-
-response_format: |
-  Decisions:
-  {decision_lines}
+output_schema:
+  type: object
+  properties:
+    decisions:
+      type: array
+      items:
+        type: object
+        properties:
+          text:
+            type: string
+          decision:
+            type: string
+            enum:
+              - keep
+              - remove
+          reason:
+            type: string
+        required:
+          - text
+          - decision
+  required:
+    - decisions

@@ -18,6 +18,7 @@ _OLLAMA_TO_HF: dict[str, str] = {
     "llama3.1:70b": "meta-llama/Llama-3.1-70B-Instruct",
     "llama2:latest": "meta-llama/Llama-2-7b-chat-hf",
     "mistral:latest": "mistralai/Mistral-7B-Instruct-v0.3",
+    "qwen3:4b": "Qwen/Qwen3-4B",
     "qwen3:8b": "Qwen/Qwen3-8B",
     "qwen3.5:9b": "Qwen/Qwen3.5-9B",
     "qwen2.5:1.5b": "Qwen/Qwen2.5-1.5B-Instruct",

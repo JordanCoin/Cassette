@@ -1,4 +1,4 @@
-"""Prompt loader — reads prompt templates from YAML files."""
+"""Prompt loader — reads prompt templates and output schemas from YAML files."""
 
 from __future__ import annotations
 
@@ -7,15 +7,13 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
+from libs.core.config import get_str
+
+PROMPTS_DIR = Path(get_str("prompts_dir"))
 
 
 def load_prompt(name: str, prompts_dir: Path | None = None) -> dict[str, Any]:
-    """Load a prompt template by name.
-
-    Looks for {name}.yaml in the prompts directory.
-    Returns the parsed YAML as a dict with at least 'template'.
-    """
+    """Load a prompt template by name."""
     directory = prompts_dir or PROMPTS_DIR
     path = directory / f"{name}.yaml"
 
@@ -39,3 +37,10 @@ def render_prompt(name: str, **kwargs: str) -> str:
     data = load_prompt(name)
     result: str = data["template"].format(**kwargs)
     return result
+
+
+def get_output_schema(name: str) -> dict[str, Any] | None:
+    """Get the output JSON schema for a prompt, if defined."""
+    data = load_prompt(name)
+    schema: dict[str, Any] | None = data.get("output_schema")
+    return schema

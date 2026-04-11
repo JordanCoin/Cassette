@@ -1,6 +1,6 @@
 name: per_entity
 description: Classify a single entity as keep or remove
-version: 1
+version: 2
 
 template: |
   Classify this entity extracted from a government document.
@@ -20,6 +20,16 @@ template: |
   - Specific date, location, or dollar amount
   - Document or case number
 
-  Answer ONLY: keep or remove
-
-response_format: "{decision}"
+output_schema:
+  type: object
+  properties:
+    decision:
+      type: string
+      enum:
+        - keep
+        - remove
+    reason:
+      type: string
+  required:
+    - decision
+    - reason
