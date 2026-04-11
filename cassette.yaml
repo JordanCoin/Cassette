@@ -11,6 +11,7 @@ provider: mock
 model: default
 provider_url: http://localhost:8080
 provider_timeout: 60
+provider_api_key: ""  # Bearer token for hosted OpenAI-compatible providers (Fireworks, Together, etc.)
 search_url: http://localhost:8888
 
 # Model inference defaults

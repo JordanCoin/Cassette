@@ -14,12 +14,26 @@ class ProviderResponseError(RuntimeError):
 
 
 class LlamaCppHttpProvider:
-    """Sends chat completions to a llama.cpp server over HTTP."""
+    """Sends chat completions to any OpenAI-compatible server over HTTP.
 
-    def __init__(self, base_url: str, timeout: float = 60.0, model: str = "default") -> None:
+    Originally built for llama.cpp, but speaks the OpenAI chat completions wire
+    format so it also works with ollama's /v1, Fireworks, Together, DeepInfra,
+    and any other hosted provider that exposes /v1/chat/completions.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 60.0,
+        model: str = "default",
+        api_key: str = "",
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._model = model
+        self._headers: dict[str, str] = {}
+        if api_key:
+            self._headers["Authorization"] = f"Bearer {api_key}"
 
     @property
     def name(self) -> str:
@@ -46,7 +60,7 @@ class LlamaCppHttpProvider:
         if kwargs.get("think") is not None:
             payload["think"] = kwargs["think"]
         try:
-            resp = httpx.post(url, json=payload, timeout=self._timeout)
+            resp = httpx.post(url, json=payload, headers=self._headers, timeout=self._timeout)
             resp.raise_for_status()
         except httpx.TimeoutException as exc:
             raise ProviderTimeoutError(
@@ -105,7 +119,7 @@ class LlamaCppHttpProvider:
         for path in ["/v1/models", "/health", "/"]:
             url = f"{self._base_url}{path}"
             try:
-                resp = httpx.get(url, timeout=5.0)
+                resp = httpx.get(url, headers=self._headers, timeout=5.0)
                 if resp.status_code < 500:
                     return {
                         "reachable": True,

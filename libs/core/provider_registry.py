@@ -12,7 +12,10 @@ from libs.core.ports import ModelProvider
 _PROVIDERS: dict[str, Callable[[], ModelProvider]] = {
     "mock": MockProvider,
     "llama_cpp_http": lambda: LlamaCppHttpProvider(
-        get_str("provider_url"), timeout=get_float("provider_timeout"), model=get_str("model")
+        get_str("provider_url"),
+        timeout=get_float("provider_timeout"),
+        model=get_str("model"),
+        api_key=get_str("provider_api_key"),
     ),
 }
 
